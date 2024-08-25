@@ -1,0 +1,30 @@
+---
+title: |
+    | **STAT 656: Bayesian Data Analysis**
+    | **Fall 2024**
+    | **Homework 1**
+author: "Juanwu Lu^[College of Engineering, Purdue University, West Lafayette, IN, USA]"
+description: "Homework 1 for STAT 656 at Purdue University"
+output: pdf_document
+---
+
+## Synthetic Data
+
+The _autoregressive model_ is frequently used to analyze time series data. The simplest autoregressive model has order 1, and is abbreviated as AR(1). This model assumes that an observation $y_i$ at time point $i\ (i=1,\ldots,n)$ is generated according to $$y_i=\rho y_{i-1}+\epsilon_i,$$ where $\epsilon_i\sim\mathcal{N}(0,\sigma^2)$ independently, and $rho$ and $\sigma$ are unknown parameters. For simplicity, we shall assume that $y_0$ is a fixed constant. We will also assume $|\rho|<1$.
+
+1. (5 points) Write the log-likelihood function $\log L(\rho,\sigma^2|y_0,y_1,\ldots,y_n)$ for $(\rho,\sigma^2)^\intercal$ for AR(1) model.
+
+    **Solution:**
+
+    Given the formulation above, the log-likelihood function is calculated as follows:
+    $$
+    \begin{aligned}
+        \log L(\rho, \sigma^2|y_0, y_1,\ldots,y_n) &= \log\prod\limits_{i=1}^n (2\pi\sigma^2)^{-\frac{1}{2}}\cdot\exp\left\{-\frac{(y_i-\rho y_{i-1})^2}{2\sigma^2}\right\} \\
+        &= -\frac{n}{2}\log(2\pi\sigma^2) - \frac{1}{2\sigma^2}\sum\limits_{i=1}^n(y_i-\rho y_{i-1})^2 \\
+        &= -\frac{n}{2}\log(2\pi) - n\log(\sigma) - \frac{1}{2\sigma^2}\sum\limits_{i=1}^n(y_i-\rho y_{i-1})^2.
+    \end{aligned}
+    $$
+
+2. (10 points) Write an R function that computes the log-likelihood function for $(\rho, \log(\sigma))^\intercal$ for this data. Provide a visualziation of this log-likelihood as a contour plot. Hint: The `outer` and `contour` function in `R` can be useful for creating the visualiazation, see also the code of lecture 2 and 3.
+
+3. For the purposes of this problem, suppose we specify $\rho\sim\text{Uniform}(-1, 1)$, $\log(\sigma)\sim\mathcal{N}(0, 10^2)$ independently _a priori_ (note that this may not be an appropriate prior for the parameters of an AR(1) model in general). Write an R function that computes the log of the posterior density (up to a constant) for $(\rho, \log(\sigma))^\intercal$ under this prior. Provide a visualization of this function as above. How 
