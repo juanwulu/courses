@@ -27,4 +27,52 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
 
 2. (10 points) Write an R function that computes the log-likelihood function for $(\rho, \log(\sigma))^\intercal$ for this data. Provide a visualziation of this log-likelihood as a contour plot. Hint: The `outer` and `contour` function in `R` can be useful for creating the visualiazation, see also the code of lecture 2 and 3.
 
-3. For the purposes of this problem, suppose we specify $\rho\sim\text{Uniform}(-1, 1)$, $\log(\sigma)\sim\mathcal{N}(0, 10^2)$ independently _a priori_ (note that this may not be an appropriate prior for the parameters of an AR(1) model in general). Write an R function that computes the log of the posterior density (up to a constant) for $(\rho, \log(\sigma))^\intercal$ under this prior. Provide a visualization of this function as above. How 
+    **Solution:**
+
+    The code implementation is as follows:
+    ```{r fig.width=8, fig.height=6}
+    # Read data
+    if (file.exists("computation_data_hw_1.csv")) {
+        data <- read.csv("computation_data_hw_1.csv")
+        y <- data[['x']]
+    } else {
+        stop("Cannot find the data file 'computation_data_hw_1.csv' at ", getwd())
+    }
+
+    # Define the log-likelihood function
+    ar_loglik <- function(rho, log_sig) {
+        n <- length(y)
+        sig <- exp(log_sig)
+        rho <- rep(as.numeric(rho), times = n - 1)
+        log_lik <- -0.5 * (
+            n * log(2 * pi)
+            + 2 * n * log_sig
+            + (y[1]^2 + sum((y[2:n] - rho * y[1:(n-1)])^2)) / sig^2
+        )
+        return(log_lik)
+    }
+
+    # Visualization
+    rho <- seq(-0.99, 0.99, length=100)
+    log_sig <- seq(-1.0, 0.0, length=100)
+    loglik <- outer(rho, log_sig, Vectorize(ar_loglik))
+    contour(
+        x=rho,
+        y=log_sig,
+        z=loglik,
+        xlab=expression(rho),
+        ylab=expression(log(sigma)),
+        nlevels=20,
+    )
+    ```
+
+3. (10 points) For the purposes of this problem, suppose we specify $\rho\sim\text{Uniform}(-1, 1)$, $\log(\sigma)\sim\mathcal{N}(0, 10^2)$ independently _a priori_ (note that this may not be an appropriate prior for the parameters of an AR(1) model in general). Write an R function that computes the log of the posterior density (up to a constant) for $(\rho, \log(\sigma))^\intercal$ under this prior. Provide a visualization of this function as above. How does this function compare to the log-likelihood function? Would you say that this prior specification is overly informative? Why or why not?
+
+4. (10 points) Draw 1000 values of $(\rho, \log(\sigma))^\intercal$ from a discrete grid approximation to the posterior. Be sure to describe your choice of discrete grid. Hint: The previous step can be helpful in this regard, together with the R function sample. Again, look at the code associated with the lectures.
+
+5. (5 points) Use these draws to calculate the following summaries for each of $\rho$ and $\log(\sigma)$: $0.025, 0.25, 0.5, 0.75, 0.975$ quantiles, mean, standard deviation, skewness, and kurtosis. You can use the library `moments` if you want.
+
+6. (10 points) Write an `R` function that takes parameters $(\rho, \log(\sigma))^intercal$ and simulates a new dataset yrep according to the AR process. Recall that we can simulate from the posterior predictive distribution of new datasets $y^{\text{rep}}$ given todays dataset as follows: first simulate a parameter set from the posterior distribution, and use this to simulate a new dataset. Use your two earlier `R` functions to generate 1000 such posterior predictive samples. Summarize your draws.
+
+7. (10 points) Compare the observed data to these posterior predictive summaries. Also create a plot where the observed data is suporposed on these posterior predictive trajectories. What can you say about the
+model fit? Does the model appear appropriate?
