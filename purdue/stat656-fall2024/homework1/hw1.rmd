@@ -73,14 +73,6 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
     $$
     where $C$ is the constant log-normalizer and $C^\prime$ is a constant irrelevant to $\rho$ and $\log(\sigma)$. The visualization of the log of the posterior density is as follows:
     ```{r fig.width=8, fig.height=6}
-    # Read data
-    if (file.exists("computation_data_hw_1.csv")) {
-        data <- read.csv("computation_data_hw_1.csv")
-        y <- data[['x']]
-    } else {
-        stop("Cannot find the data file 'computation_data_hw_1.csv' at ", getwd())
-    }
-
     # Define the log-likelihood function
     ar_logpost <- function(rho, log_sig) {
         n <- length(y)
@@ -95,8 +87,6 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
     }
 
     # Visualization
-    rho <- seq(-0.99, 0.99, length=100)
-    log_sig <- seq(-1.0, 1.0, length=100)
     logpost <- outer(rho, log_sig, Vectorize(ar_logpost))
     contour(
         x=rho,
@@ -110,7 +100,13 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
 
     Compared to the log-likelihood function, the log posterior density is more concentrated around the maximum likelihood estimate of $(\rho, \log(\sigma))^\intercal$. The prior is not overly informative since the shape of the posterior density is still similar to the likelihood function, indicating that the posterior is mainly determined by the likelihood function.
 
-4. (10 points) Draw 1000 values of $(\rho, \log(\sigma))^\intercal$ from a discrete grid approximation to the posterior. Be sure to describe your choice of discrete grid. Hint: The previous step can be helpful in this regard, together with the R function sample. Again, look at the code associated with the lectures.
+4. (10 points) **Solution:**
+
+    From the visualization in 3., we can see that the posterior density is concentrated around $0.0\leq\rho\leq 1.0$ and $-0.9\leq\log(\sigma)\leq 0.0$. Therefore, we can choose a grid of $\rho$ and $\log(\sigma)$ as follows:
+    ```{r}
+    rho_grid <- sample(x=seq(0.0, 1.0, length=5000), size=1000)
+    log_sig_grid <- sample(x=seq(-0.9, 0.0, length=5000), size=1000)
+    ```
 
 5. (5 points) Use these draws to calculate the following summaries for each of $\rho$ and $\log(\sigma)$: $0.025, 0.25, 0.5, 0.75, 0.975$ quantiles, mean, standard deviation, skewness, and kurtosis. You can use the library `moments` if you want.
 
