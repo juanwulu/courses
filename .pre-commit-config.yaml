@@ -171,6 +171,7 @@ repos:
           inst/pre-commit-.*|
           inst/usethis-legacy-hook|
           ^LICENSE$|
+          ^environment.yaml|
           renv/.*|
           revdep/.*|
           tests/testthat/in/.*|
