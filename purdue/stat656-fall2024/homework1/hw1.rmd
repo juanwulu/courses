@@ -75,14 +75,8 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
     ```{r fig.width=8, fig.height=6}
     # Define the log-likelihood function
     ar_logpost <- function(rho, log_sig) {
-        n <- length(y)
-        sig <- exp(log_sig)
-        rho <- rep(as.numeric(rho), times = n - 1)
-        log_post <- -(
-            n * log_sig
-            + (y[1]^2 + sum((y[2:n] - rho * y[1:(n-1)])^2)) / sig^2
-            + log_sig^2 / 200
-        )
+        log_prior <- -log(2) - 0.5 * (log(2 * pi) + log(100) + log_sig^2 / 100)
+        log_post <- ar_loglik(rho, log_sig) + log_prior
         return(log_post)
     }
 
@@ -104,12 +98,60 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
 
     From the visualization in 3., we can see that the posterior density is concentrated around $0.0\leq\rho\leq 1.0$ and $-0.9\leq\log(\sigma)\leq 0.0$. Therefore, we can choose a grid of $\rho$ and $\log(\sigma)$ as follows:
     ```{r}
+    set.seed(42)
     rho_grid <- sample(x=seq(0.0, 1.0, length=5000), size=1000)
     log_sig_grid <- sample(x=seq(-0.9, 0.0, length=5000), size=1000)
     ```
 
-5. (5 points) Use these draws to calculate the following summaries for each of $\rho$ and $\log(\sigma)$: $0.025, 0.25, 0.5, 0.75, 0.975$ quantiles, mean, standard deviation, skewness, and kurtosis. You can use the library `moments` if you want.
+5. (5 points) **Solution:**
 
-6. (10 points) Write an `R` function that takes parameters $(\rho, \log(\sigma))^\intercal$ and simulates a new dataset $y^{\text{rep}}$ according to the AR process. Recall that we can simulate from the posterior predictive distribution of new datasets $y^{\text{rep}}$ given todays dataset as follows: first simulate a parameter set from the posterior distribution, and use this to simulate a new dataset. Use your two earlier `R` functions to generate 1000 such posterior predictive samples. Summarize your draws.
+    The code implementation is as follows:
+    ```{r}
+    library(moments)
+
+    # Calculate summaries for rho
+    print(quantile(rho_grid, probs=c(0.025, 0.25, 0.5, 0.75, 0.975)))
+    sprintf("Mean: %.4f", mean(rho_grid))
+    sprintf("Standard Deviation: %.4f", sd(rho_grid))
+    sprintf("Skewnewss: %.4f", skewness(rho_grid))
+    sprintf("Kurtosis: %.4f", kurtosis(rho_grid))
+    # Calculate summaries for log(sigma)
+    print(quantile(log_sig_grid, probs=c(0.025, 0.25, 0.5, 0.75, 0.975)))
+    sprintf("Mean: %.4f", mean(log_sig_grid))
+    sprintf("Standard Deviation: %.4f", sd(log_sig_grid))
+    sprintf("Skewness: %.4f", skewness(log_sig_grid))
+    sprintf("Kurtosis: %.4f", kurtosis(log_sig_grid))
+    ```
+
+
+6. (10 points) **Solution:**
+
+   The code implementation is as follows:
+    ```{r}
+    ar_post_predictive <- function(rho, log_sig) {
+        # Sample from the posterior predictive distribution
+        n <- length(y)
+        new_y <- rep(0.0, times = n)
+        sig <- exp(log_sig)
+        for (i in 2:n) {
+            new_y[i] <- rnorm(n=1, mean=rho * new_y[i-1], sd=sig)
+        }
+        return(new_y)
+    }
+
+    params <- data.frame(rho=rho_grid, log_sig=log_sig_grid)
+    samples <- matrix(NA, nrow=nrow(params), ncol=length(y))
+    for (i in 1:nrow(params)) {
+        samples[i,] <- ar_post_predictive(params[i, 'rho'], params[i, 'log_sig'])
+    }
+    ```
+
+    The above code makes use of the grid samples drawn in problem 4. For each pair of $(\rho, \log(\sigma))$, we use the AR(1) model to generate a new sample of sequences. The summary statistics of the posterior predictive distribution are as follows:
+    ```{r}
+    print("Sequence means:")
+    print(colMeans(samples))
+    print("Sequence standard deviations:")
+    print(apply(samples, 2, sd))
+    ```
 
 7. (10 points) Compare the observed data to these posterior predictive summaries. Also create a plot where the observed data is suporposed on these posterior predictive trajectories. What can you say about the model fit? Does the model appear appropriate?
