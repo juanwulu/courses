@@ -154,4 +154,31 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
     print(apply(samples, 2, sd))
     ```
 
-7. (10 points) Compare the observed data to these posterior predictive summaries. Also create a plot where the observed data is suporposed on these posterior predictive trajectories. What can you say about the model fit? Does the model appear appropriate?
+7. (10 points) **Solution:**
+
+    The visualization of the posterior predictive samples against the observed data is as follows:
+    ```{r fig.width=8, fig.height=6}
+    plot(
+        x=1:length(y),
+        y=samples[1,],
+        col='gray',
+        type='l',
+        lwd=0.75,
+        xlab='Time',
+        ylab='Value',
+        ylim=c(-3.0, 3.0)
+    )
+    for (i in 2:100) {
+        lines(x=1:length(y), y=samples[i,], col='gray', lwd=0.75)
+    }
+    lines(x=1:length(y), y=y, col='blue', lwd=1.0)
+    legend(
+        'topright',
+        legend=c('Observed', 'Posterior Predictive Samples'),
+        col=c('blue', 'gray'),
+        lwd=c(1, 0.5),
+        bg='white',
+    )
+    ```
+
+    From the visualization, we see that the posterior predictive samples have a wider range than the observed data, indicating that the model has a higher uncertainty in prediction and may not be able to capture the true data distribution well. Therefore, the model is not a good fit for the observed data.

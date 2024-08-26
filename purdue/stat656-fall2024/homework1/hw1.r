@@ -90,7 +90,6 @@ samples <- matrix(NA, nrow=nrow(params), ncol=length(y))
 for (i in 1:nrow(params)) {
     samples[i,] <- ar_post_predictive(params[i, 'rho'], params[i, 'log_sig'])
 }
-# create a plot where the observed data is suporposed on the posterior predictive samples with legends
 plot(
     x=1:length(y),
     y=samples[1,],
