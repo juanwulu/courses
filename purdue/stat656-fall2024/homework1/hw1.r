@@ -3,6 +3,7 @@
 # Author: Juanwu Lu
 # Date:   2024-08-24
 library(moments)
+library(tseries)
 
 # Control the global seed
 set.seed(42)
@@ -137,7 +138,39 @@ legend(
 # Read the data
 if (file.exists("data/covid_us.txt")) {
   data <- read.table("data/covid_us.txt", header = TRUE, sep = ",")
-  y <- data[["x"]]
+  y <- data[["cases"]]
 } else {
   stop("File not found: 'computation_data_hw_1.csv' at ", getwd())
 }
+print(y)
+plot(
+  x = seq_len(length(y)),
+  y = y,
+  type = "l",
+  xlab = "Date",
+  ylab = "Cases",
+  xaxt = "n",
+)
+lines(
+  x = seq_len(length(y)),
+  y = exp(0.07 * (seq_len(length(y)) + 1)),
+  col = "blue"
+)
+axis(side = 1, labels = data[["date"]], at = seq_len(length(y)))
+
+
+# --- problem 2.2 - 2.3 ---
+# Build AR(1) model on daily case increase
+transformed_y <- c(0, diff(log(y), lag = 1))
+print(transformed_y)
+print(adf.test(transformed_y, alternative = "stationary"))
+plot(
+  x = transformed_y[seq(1, length(transformed_y) - 1)],
+  y = transformed_y[seq(2, length(transformed_y))],
+  type = "p",
+  pch = 21,
+  col = "blue",
+  bg = "lightblue",
+  xlab = expression(omega[t - 1]),
+  ylab = expression(omega[t]),
+)

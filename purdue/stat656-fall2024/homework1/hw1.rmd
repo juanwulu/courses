@@ -199,8 +199,70 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
     )
     ```
 
-    From the visualization, we see that the posterior predictive samples have a wider range than the observed data, indicating that the model has a higher uncertainty in prediction and may not be able to capture the true data distribution well. Therefore, the model is **not a good fit** for the observed data.
+    From the visualization, we see that the posterior predictive samples have a wider range than the observed data, indicating that the model has a higher uncertainty in prediction and may not be able to capture the true data distribution well. Therefore, the model is **not a good fit** for the observed data. My expectation for a good model is that the posterior predictive samples are close to the observed data with a similar tendency and range.
 
 \newpage
 
 # Real Data
+
+1. (5 points) **Solution:**
+
+    **No**, I do not believe that the information given is sufficient for analyzing the data. The GitHub page has only provided the dataset file, source of data, and definitions of different sorts of cases. All these pieces of information are related to the observation, i.e., COVID-19 cases, but none of them reflect any information to support the prior distribution of the parameters in the model. Other information such as demographic statistics, geofencing data, activity data, etc., can be useful for data analysis.
+
+2. (5 points) **Solution:**
+
+    Before establishing the model, the raw data is visualized as follows:
+    ```{r fig.width=8, fig.height=6}
+    # Read data
+    if (file.exists("data/covid_us.txt")) {
+      data <- read.table("data/covid_us.txt", header = TRUE, sep = ",")
+      y <- data[["cases"]]
+    } else {
+      stop("File not found: 'computation_data_hw_1.csv' at ", getwd())
+    }
+    plot(
+      x = seq_len(length(y)),
+      y = y,
+      type = "l",
+      xlab = "Date",
+      ylab = "Cases",
+      xaxt = "n"
+    )
+    lines(
+      x = seq_len(length(y)),
+      y = exp(0.075 * (seq_len(length(y)) - 1)),
+      col = "blue"
+    )
+    axis(side = 1, labels = data[["date"]], at = seq_len(length(y)))
+    legend(
+      "topleft",
+      legend = c("Observation", expression(y=exp(0.075 * (t - 1)))),
+      col = c("black", "blue"),
+      lwd = c(1, 0.5),
+      bg = "white",
+    )
+    ```
+    From the visualization, it is clear that the raw data has an exponential growth trend (blue line), which can not be directly captured by the AR(1) model. Therefore, the raw data needs to be transformed before being used for fitting an AR(1) model. The transformation consists of two steps: first, taking the logarithm of the raw data, and then, differentiating the transformed with `lag = 1` to filter out the non-stationary trend that is not captured by the AR(1) model. The transformed data is given as
+    $$
+    \omega_t = \log(y_t) - \log(y_{t-1}).
+    $$
+    For consistency, $\omega_1 = 0$. The visualization of the transformed data is as follows:
+    ```{r fig.width=8, fig.height=6}
+    omg <- c(0, diff(log(y), lag = 1))
+    plot(
+      x = omg[seq(1, length(omg) - 1)],
+      y = omg[seq(2, length(omg))],
+      type = "p",
+      pch = 21,
+      col = "blue",
+      bg = "lightblue",
+      xlab = expression(omega[t - 1]),
+      ylab = expression(omega[t]),
+    )
+    ```
+    As shown in the visualization, the transformed data has a more linear relationship between consecutive observations. Finally, the AR(1) model is constructed as:
+    $$
+      \omega_i = \rho\omega_{i-1} + \epsilon_i, \quad \epsilon_i\sim\mathcal{N}(0, \sigma^2).
+    $$
+
+3. (5 points)
