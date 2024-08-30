@@ -174,3 +174,9 @@ plot(
   xlab = expression(omega[t - 1]),
   ylab = expression(omega[t]),
 )
+abline(
+  lm(
+    transformed_y[seq(2, length(transformed_y))] ~
+      transformed_y[seq(1, length(transformed_y) - 1)]
+  )
+)

@@ -265,4 +265,10 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
       \omega_i = \rho\omega_{i-1} + \epsilon_i, \quad \epsilon_i\sim\mathcal{N}(0, \sigma^2).
     $$
 
-3. (5 points)
+3. (5 points) **Solution:**
+
+    Based on the visualization above, a majority of the point cloud is growing linearly with a slope around $1.0$ and slopes are non-negative. Therefore, the prior distribution of $\rho$ can be set as a Gamma distribution $\rho\sim\text{Gamma}(1, 1)$ with a mean of $1.0$. For the log-variance $\log(\sigma)$, without losing generality, the prior can be set a normal distribution $\log(\sigma)\sim\mathcal{N}(0, 1^2)$.
+
+4. (10 points) **Solution:**
+
+5.
