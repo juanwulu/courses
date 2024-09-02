@@ -715,4 +715,23 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
 
     From the results, the model is capable of providing good predictions for the COVID-19 cases in Indiana. By comparing the time-series plot of cases in Indiana and in the US, the trend of the cases in Indiana is similar to the trend of the cases in the US. Therefore, the AR(1) model with the same prior can retain its predictive power transferring from the entire US to just Indiana.
 
-8. (5 points) Provide a non-technical explanation of your finds for an audience with minimal statistical training. Specifically, describe the AR(1) model in lay terms, explain whether or not this model provides good predictions in this context, and provide intuitive justifications for why the AR(1) model succeeds or fails in this context.
+8. (5 points) **Solution:**
+
+    In summary, a AR(1) model on daily COVID-19 case increase is established in this problem. Specifically, the number of increased COVID-19 cases at the $t$-th day $\omega_t$ is linearly correlated with the number of increased cases at the $(t-1)$-th day $\omega_{t-1}$, with some random noise.
+    $$
+    \omega_t = \rho\omega_{t-1} + \epsilon_t, \quad \epsilon_t\sim\mathcal{N}(0, \sigma^2).
+    $$
+
+    The model is fitted to the data both in the entire US and in the Indiana state. We conclude that the model provides good predictions in both cases by drawing samples from its predictive distribution, and these samples have the distribution similar to the observed data. The success can be intuitively attributed to two main reasons: first, the similar trend of the COVID-19 cases in Indiana and the US, which makes the AR(1) model transferable from the entire US to Indiana; meanwhile, the differentiating data preprocess helps to remove the non-stationary trend in the data, which can not be captured by the AR(1) model.
+
+\newpage
+
+# Feedback
+
+a. Yes, the instructor present the material in a clear and understandable way.
+b. Yes, the instructor well-addressed the questions.
+c. I would like to hear more about how to properly select the appropriate prior under different circumstances.
+d. Yes, quite representative.
+e. None that I can think of now.
+f. I believe the instructor can provide more examples to illustrate posterior predictive checks for time-series data, which is more related to the homework.
+g. No, I am satisfied with the course so far.
