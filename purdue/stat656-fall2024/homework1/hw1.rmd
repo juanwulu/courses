@@ -58,6 +58,7 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
       z = loglik,
       xlab = expression(rho),
       ylab = expression(log(sigma)),
+      main = "Log-Likelihood Function",
       nlevels = 20,
       axes = FALSE,
     )
@@ -87,6 +88,7 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
       x = rho,
       y = log_sig,
       z = logpost,
+      main = "Unnormalized Log-Posterior Density",
       xlab = expression(rho),
       ylab = expression(log(sigma)),
       nlevels = 20,
@@ -96,7 +98,7 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
     axis(side = 2, at = seq(-1.0, 0.0, by = 0.10))
     ```
 
-    Compared to the log-likelihood function, the log posterior density is more concentrated around the maximum likelihood estimate of $(\rho, \log(\sigma))^\intercal$. The prior is not overly informative since the shape of the posterior density is still similar to the likelihood function, indicating that the posterior is mainly determined by the likelihood function.
+    Compared to the log-likelihood function, the log posterior density is more concentrated around the maximum likelihood estimate of $(\rho, \log(\sigma))^\intercal$. The prior is not overly informative since the shape of the posterior density is still similar to the likelihood function, indicating that the posterior is **mainly determined by the likelihood function**.
 
 4. (10 points) **Solution:**
 
@@ -182,6 +184,7 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
       col = "gray",
       type = "l",
       lwd = 0.75,
+      main = "Posterior Predictive Samples vs. Observed Data",
       xlab = "Time",
       ylab = "Value",
       ylim = c(-3.0, 3.0)
@@ -224,6 +227,7 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
       x = seq_len(length(y)),
       y = y,
       type = "l",
+      main = "COVID-19 Cases in the US",
       xlab = "Date",
       ylab = "Cases",
       xaxt = "n"
@@ -242,6 +246,7 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
       bg = "white",
     )
     ```
+
     From the visualization, it is clear that the raw data has an exponential growth trend (blue line), which can not be directly captured by the AR(1) model. Therefore, the raw data needs to be transformed before being used for fitting an AR(1) model. The transformation consists of two steps: first, taking the logarithm of the raw data, and then, differentiating the transformed with `lag = 1` to filter out the non-stationary trend that is not captured by the AR(1) model. The transformed data is given as
     $$
     \omega_t = \log(y_t) - \log(y_{t-1}).
@@ -260,6 +265,7 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
       ylab = expression(omega[t]),
     )
     ```
+
     As shown in the visualization, the transformed data has a more linear relationship between consecutive observations. Finally, the AR(1) model is constructed as:
     $$
       \omega_i = \rho\omega_{i-1} + \epsilon_i, \quad \epsilon_i\sim\mathcal{N}(0, \sigma^2).
@@ -271,4 +277,92 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
 
 4. (10 points) **Solution:**
 
-5.
+    With the above specified prior distributions, the log-posterior density is calculated as follows:
+    $$
+    \begin{aligned}
+        \log p(\rho, \log(\sigma)|\omega_1,\ldots,\omega_n) &= \log L(\rho, \log(\sigma)|\omega_1,\ldots,\omega_n) + \log p(\rho) + \log p(\log(\sigma)) + C \\
+        &= -\frac{n}{2}\log(2\pi\sigma^2) - \frac{1}{2\sigma^2}\sum\limits_{i=1}^n(\omega_i-\rho\omega_{i-1})^2 + \log\left(\frac{1}{\Gamma(1)}\exp(-\rho)\right) - \frac{\log(\sigma)^2}{2} + C^\prime \\
+        &= -\frac{n}{2}\log(2\pi\sigma^2) - \frac{1}{2\sigma^2}\sum\limits_{i=1}^n(\omega_i-\rho\omega_{i-1})^2 - \rho - \frac{\log(\sigma)^2}{2} + C^{\prime},
+    \end{aligned}
+    $$
+
+    Therefore, the model fitted using data from the first time point until June 30 is as follows:
+    ```{r fig.width=8, fig.height=6}
+    y <- c(
+      0,
+      diff(log(y[as.Date(data$date) < as.Date("2020-06-30")]), lag = 1)
+    )
+    rho <- seq(0.0, 2.0, length = 100)
+    log_sig <- seq(-2.5, 0.5, length = 100)
+    log_lik <- outer(rho, log_sig, Vectorize(ar_loglik))
+    contour(
+      x = rho,
+      y = log_sig,
+      z = log_lik,
+      main = "Log-Likelihood Function",
+      xlab = expression(rho),
+      ylab = expression(log(sigma)),
+      nlevels = 20,
+    )
+    ```
+
+    The visualization of the logarithm of unnormalized posterior density is shown below:
+    ```{r fig.width=8, fig.height=6}
+    ar_logpost <- function(rho, log_sig) {
+      log_prior <- -rho - 0.5 * (log_sig^2)
+      log_post <- ar_loglik(rho, log_sig) + log_prior
+      return(log_post)
+    }
+    log_post <- outer(rho, log_sig, Vectorize(ar_logpost))
+    contour(
+      x = rho,
+      y = log_sig,
+      z = log_post,
+      main = "Unnormalized Log-Posterior Density",
+      xlab = expression(rho),
+      ylab = expression(log(sigma)),
+      nlevels = 20,
+    )
+    ```
+
+   Similarly, I draw 1000 samples from the grid and calculate the summary statistics as follows:
+    ```{r}
+    library(moments)
+
+    rho_grid <- seq(0.5, 1.0, length = 100)
+    log_sig_grid <- seq(-2.5, -2.0, length = 100)
+    grid_log_post <- outer(rho_grid, log_sig_grid, Vectorize(ar_logpost))
+    # Calculate the normalized probability density
+    probs <- exp(grid_log_post - max(grid_log_post))
+    probs <- probs / sum(probs)
+    # Randomly sample from the grid
+    indices <- sample(
+      x = seq_len(length(as.vector(probs))),
+      size = 1000,
+      replace = TRUE,
+      prob = probs
+    )
+    rho_sample <- rho_grid[((indices - 1) %% nrow(probs)) + 1]
+    log_sig_sample <- log_sig_grid[((indices - 1) %/% nrow(probs)) + 1]
+
+    # Calculate summaries for rho
+    print(quantile(rho_sample, probs = c(0.025, 0.25, 0.5, 0.75, 0.975)))
+    sprintf("Mean: %.4f", mean(rho_sample))
+    sprintf("Standard Deviation: %.4f", sd(rho_sample))
+    sprintf("Skewnewss: %.4f", skewness(rho_sample))
+    sprintf("Kurtosis: %.4f", kurtosis(rho_sample))
+    # Calculate summaries for log(sigma)
+    print(quantile(log_sig_sample, probs = c(0.025, 0.25, 0.5, 0.75, 0.975)))
+    sprintf("Mean: %.4f", mean(log_sig_sample))
+    sprintf("Standard Deviation: %.4f", sd(log_sig_sample))
+    sprintf("Skewness: %.4f", skewness(log_sig_sample))
+    sprintf("Kurtosis: %.4f", kurtosis(log_sig_sample))
+    ```
+
+5. (10 points) Conduct a posterior predictive check to diagnose the fit of your model for the data until June 30. Does your model provide good predictions? Why or why not? If not, describe how you would consider modifying it to address the observed inadequacies (you don't have to actually do this).
+
+6. (10 points) Simulate posterior predictions for the cases and deaths in the United States from July 1 until August 25. Compare these posterior predictions to the actual values of the two variables, and comment on the quality of the AR(1) model for predicting future cases and deaths in this context.
+
+7. (10 points) Now replicate the analyses you performed in step 4 on the entire United States for the state of Indiana individually. Discuss if you think the results agree with the results of the entire United States.
+
+8. (5 points) Provide a non-technical explanation of your finds for an audience with minimal statistical training. Specifically, describe the AR(1) model in lay terms, explain whether or not this model provides good predictions in this context, and provide intuitive justifications for why the AR(1) model succeeds or fails in this context.
