@@ -106,7 +106,7 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
     ```{r}
     set.seed(42)
     rho_grid <- seq(0.25, 0.75, length = 100)
-    log_sig_grid <- seq(-0.9, -0.5, length = 100)
+    log_sig_grid <- seq(-0.90, -0.50, length = 100)
     grid_log_post <- outer(rho_grid, log_sig_grid, Vectorize(ar_logpost))
     # Calculate the normalized probability density
     probs <- exp(grid_log_post - max(grid_log_post))
@@ -150,11 +150,10 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
     ar_post_predictive <- function(rho, log_sig) {
       # Sample from the posterior predictive distribution
       y <- .GlobalEnv$y
-      n <- length(y)
-      new_y <- rep(0.0, times = n)
+      new_y <- rep(0.0, times = length(y))
       sig <- exp(log_sig)
-      for (i in 2:n) {
-        new_y[i] <- rnorm(n = 1, mean = rho * new_y[i - 1], sd = sig)
+      for (i in 2:length(y)) {
+        new_y[i] <- rnorm(n = 1, mean = rho * y[i - 1], sd = sig)
       }
       return(new_y)
     }
@@ -232,11 +231,6 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
       ylab = "Cases",
       xaxt = "n"
     )
-    lines(
-      x = seq_len(length(y)),
-      y = exp(0.075 * (seq_len(length(y)) - 1)),
-      col = "blue"
-    )
     axis(side = 1, labels = data[["date"]], at = seq_len(length(y)))
     legend(
       "topleft",
@@ -247,13 +241,13 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
     )
     ```
 
-    From the visualization, it is clear that the raw data has an exponential growth trend (blue line), which can not be directly captured by the AR(1) model. Therefore, the raw data needs to be transformed before being used for fitting an AR(1) model. The transformation consists of two steps: first, taking the logarithm of the raw data, and then, differentiating the transformed with `lag = 1` to filter out the non-stationary trend that is not captured by the AR(1) model. The transformed data is given as
+    From the visualization, it is clear that the raw data has an exponential growth trend (blue line), which can not be directly captured by the AR(1) model. Therefore, the raw data needs to be transformed before being used for fitting an AR(1) model. The transformation consists of two steps: first, differentiating the transformed with `lag = 1` to filter out the non-stationary trend that is not captured by the AR(1) model, and then, scale the differentiated data by a factor of $1/100000$ to make the data lying in a reasonable range:
     $$
-    \omega_t = \log(y_t) - \log(y_{t-1}).
+    \omega_t = \frac{1}{100000}(y_t - y_{t-1}).
     $$
     For consistency, $\omega_1 = 0$. The visualization of the transformed data is as follows:
     ```{r fig.width=8, fig.height=6}
-    omg <- c(0, diff(log(y), lag = 1))
+    omg <- c(0, diff(y, lag = 1) / 100000)
     plot(
       x = omg[seq(1, length(omg) - 1)],
       y = omg[seq(2, length(omg))],
@@ -261,6 +255,7 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
       pch = 21,
       col = "blue",
       bg = "lightblue",
+      main = "Visualization of Transformed Data",
       xlab = expression(omega[t - 1]),
       ylab = expression(omega[t]),
     )
@@ -290,10 +285,10 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
     ```{r fig.width=8, fig.height=6}
     y <- c(
       0,
-      diff(log(y[as.Date(data$date) < as.Date("2020-06-30")]), lag = 1)
+      diff(y[as.Date(data$date) < as.Date("2020-06-30")], lag = 1) / 100000
     )
-    rho <- seq(0.0, 2.0, length = 100)
-    log_sig <- seq(-2.5, 0.5, length = 100)
+    rho <- seq(0.01, 2.0, length = 100)
+    log_sig <- seq(-5.0, 0.0, length = 100)
     log_lik <- outer(rho, log_sig, Vectorize(ar_loglik))
     contour(
       x = rho,
@@ -309,7 +304,7 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
     The visualization of the logarithm of unnormalized posterior density is shown below:
     ```{r fig.width=8, fig.height=6}
     ar_logpost <- function(rho, log_sig) {
-      log_prior <- -rho - 0.5 * (log_sig^2)
+      log_prior <- -rho - 0.5 * (log_sig * log_sig)
       log_post <- ar_loglik(rho, log_sig) + log_prior
       return(log_post)
     }
@@ -329,12 +324,11 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
     ```{r}
     library(moments)
 
-    rho_grid <- seq(0.5, 1.0, length = 100)
-    log_sig_grid <- seq(-2.5, -2.0, length = 100)
-    grid_log_post <- outer(rho_grid, log_sig_grid, Vectorize(ar_logpost))
+    grid_log_post <- outer(rho, log_sig, Vectorize(ar_logpost))
     # Calculate the normalized probability density
     probs <- exp(grid_log_post - max(grid_log_post))
     probs <- probs / sum(probs)
+    print(dim(probs))
     # Randomly sample from the grid
     indices <- sample(
       x = seq_len(length(as.vector(probs))),
@@ -342,8 +336,8 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
       replace = TRUE,
       prob = probs
     )
-    rho_sample <- rho_grid[((indices - 1) %% nrow(probs)) + 1]
-    log_sig_sample <- log_sig_grid[((indices - 1) %/% nrow(probs)) + 1]
+    rho_sample <- rho[((indices - 1) %% nrow(probs)) + 1]
+    log_sig_sample <- log_sig[((indices - 1) %/% nrow(probs)) + 1]
 
     # Calculate summaries for rho
     print(quantile(rho_sample, probs = c(0.025, 0.25, 0.5, 0.75, 0.975)))
@@ -359,7 +353,80 @@ The _autoregressive model_ is frequently used to analyze time series data. The s
     sprintf("Kurtosis: %.4f", kurtosis(log_sig_sample))
     ```
 
-5. (10 points) Conduct a posterior predictive check to diagnose the fit of your model for the data until June 30. Does your model provide good predictions? Why or why not? If not, describe how you would consider modifying it to address the observed inadequacies (you don't have to actually do this).
+5. (10 points) **Solution:**
+
+    Similarly, the posterior predictive samples are compared to the observed transformed data. The code implementation is as follows:
+    ```{r, fig.width=8, fig.height=6}
+    params <- data.frame(rho = rho_sample, log_sig = log_sig_sample)
+    samples <- matrix(NA, nrow = nrow(params), ncol = length(y))
+    for (i in seq_len(nrow(params))) {
+      samples[i, ] <- ar_post_predictive(params[i, "rho"], params[i, "log_sig"])
+    }
+
+    # Visualize scatter plot
+    plot(
+      x = seq_along(samples[1, seq(1, length(y))]),
+      y = samples[1, seq(1, length(y))],
+      type = "l",
+      col = "gray",
+      xlab = "Time",
+      ylab = expression(omega[t]),
+      main = "Posterior Predictive Samples vs. Observed Data",
+    )
+    for (i in 2:1000) {
+      lines(x = seq_along(samples[i]), y = samples[i], col = "gray")
+    }
+    lines(x = seq_along(y), y = y, col = "blue")
+    ```
+
+    Following the posterior predictive check covered in the lecture, the visualization of the skewness and kurtosis of the posterior predictive samples against the observed data is as follows:
+    ```{r fig.width=8, fig.height=6}
+    skewness_obs <- skewness(y[seq(2, length(y))])
+    sample_skewness <- apply(samples, 1, function(x) skewness(x[seq(2, length(y))]))
+    kurtosis_obs <- kurtosis(y[seq(2, length(y))])
+    sample_kurtosis <- apply(samples, 1, function(x) kurtosis(x[seq(2, length(y))]))
+
+    hist(
+      x = sample_skewness,
+      main = "Skewness of Posterior Predictive Samples",
+      xlab = "Skewness",
+      col = "gray",
+      border = "white",
+    )
+    lines(
+      x = c(skewness_obs, skewness_obs),
+      y = c(0, 300),
+      col = "black",
+      lwd = 2,
+    )
+    text(
+      x = skewness_obs + 0.05,
+      y = 200,
+      labels = paste("Observed Skewness = ", round(skewness_obs, 2)),
+      pos = 1
+    )
+    hist(
+      x = sample_kurtosis,
+      main = "Kurtosis of Posterior Predictive Samples",
+      xlab = "Kurtosis",
+      col = "gray",
+      border = "white",
+    )
+    lines(
+      x = c(kurtosis_obs, kurtosis_obs),
+      y = c(0, 500),
+      col = "black",
+      lwd = 2,
+    )
+    text(
+      x = kurtosis_obs + 0.15,
+      y = 300,
+      labels = paste("Observed Kurtosis = ", round(kurtosis_obs, 2)),
+      pos = 1
+    )
+    ```
+
+    Based on the posterior predictive checks, the model provides good predictions for the data until June 30. The skewness and kurtosis of the observed data are close to the expected values from the posterior predictive samples, and the time-series visualization shows that the posterior predictive samples are close to the observed data.
 
 6. (10 points) Simulate posterior predictions for the cases and deaths in the United States from July 1 until August 25. Compare these posterior predictions to the actual values of the two variables, and comment on the quality of the AR(1) model for predicting future cases and deaths in this context.
 
