@@ -2,13 +2,14 @@
 # Copyright (c) 2024, Juanwu Lu
 # All rights reserved.
 from __future__ import annotations
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-import seaborn as sns
 import pandas as pd
+import seaborn as sns
 
 
 def main() -> None:
@@ -20,7 +21,7 @@ def main() -> None:
     # Visualize the data
     history = dat_us.loc[dat_us["date"] <= pd.to_datetime("2020-06-30")]
     future = dat_us.loc[
-        (dat_us["date"] > pd.to_datetime("2020-06-30"))
+        (dat_us["date"] >= pd.to_datetime("2020-06-30"))
         & (dat_us["date"] <= pd.to_datetime("2020-08-25"))
     ]
     y_history = history["cases"].values
@@ -38,6 +39,9 @@ def main() -> None:
     )
     omega = np.zeros(*y_history.shape)
     omega[1:] = np.diff(y_history, n=1) / 1e5
+    mean_omega = np.mean(omega)
+    std_omega = np.std(omega)
+    omega = (omega - mean_omega) / std_omega
     axes[2].plot(
         omega[:-1],
         omega[1:],
@@ -117,7 +121,6 @@ def main() -> None:
     timestep = np.arange(omega.shape[0])
     omega_sim = np.zeros((n_sim, *omega.shape))
     for i in range(n_sim):
-        print(rho_sim[i], np.exp(log_sigma_sim[i]))
         for j in range(omega.shape[0]):
             omega_sim[i, j] = GENERATOR.normal(
                 loc=rho_sim[i] * omega[j],
@@ -142,6 +145,39 @@ def main() -> None:
 
     fig.tight_layout()
     fig.savefig(IMG_ROOT.joinpath("posterior_predictive.png"))
+
+    # Future prediction
+    omega = np.zeros(*future["cases"].shape)
+    omega[1:] = np.diff(future["cases"].values, n=1) / 1e5
+    omega = (omega[1:] - mean_omega) / std_omega
+    fig, ax = plt.subplots(1, 1, figsize=(6, 4))
+    timestep = np.arange(omega.shape[0])
+    ax.plot(timestep, omega, label="Observed")
+    omega_sim = np.zeros((n_sim, *omega.shape))
+    for i in range(n_sim):
+        for j in range(omega.shape[0]):
+            omega_sim[i, j] = GENERATOR.normal(
+                loc=rho_sim[i] * omega[j],
+                scale=np.exp(log_sigma_sim[i]),
+            )
+    sim_data = pd.DataFrame.from_dict(
+        {
+            "timestep": np.tile(timestep, n_sim),
+            "omega": omega_sim.flatten(),
+            "sim_id": np.repeat(np.arange(n_sim), omega.shape[0]),
+        }
+    )
+    sns.lineplot(
+        x="timestep",
+        y="omega",
+        data=sim_data,
+        ax=ax,
+        alpha=0.5,
+        label="Simulated",
+    )
+
+    fig.tight_layout()
+    fig.savefig(IMG_ROOT.joinpath("future_prediction.png"))
 
 
 if __name__ == "__main__":
