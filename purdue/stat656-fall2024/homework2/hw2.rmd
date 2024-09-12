@@ -1,0 +1,66 @@
+---
+title: |
+    | **STAT 656: Bayesian Data Analysis**
+    | **Fall 2024**
+    | **Homework 2**
+author: "Juanwu Lu^[College of Engineering, Purdue University, West Lafayette, IN, USA]"
+description: "Homework 2 for STAT 656 at Purdue University"
+output: pdf_document
+---
+
+```{r}
+library("bayesplot")
+library("ggplot2")
+library("rstan")
+options(repr.plot.width = 6, repr.plot.height = 4)
+```
+
+# Synthetic Data
+
+The file `hw2_synthetic.csv` is a dataset of count-valued measurements $\boldsymbol{y}=\left\{y_1,\ldots,y_n\right\}$, with $y_i\in{0, 1,\ldots}$. Each output $y_{i}$ has an associated $x_{i}=(x_{i,1},x_{i,2})\in\mathbb{R}^{2}$, and write $\boldsymbol{x} = \left\{x_{1},\ldots,x_{n}\right\}$'s as $\boldsymbol{x}$. We model $y_{i}$ as
+$$
+    y_{i}|\beta\sim\text{Poisson}(e^{f(x_{i},\beta)}).
+$$
+Here, the exponential is to ensure the Poisson rate is always positive, and the function $f(x_{i},\beta) = \beta_{0} + \beta_{1}x_{i,1} + \beta_{2}x_{i,2} + \beta_{3}x^{2}_{i,1} + \beta_{4}x^{2}_{i,2} + \beta_{5}x_{i,1}x_{i,2}$.
+
+1. (25 points) **Solution**:
+
+    ```{r}
+    # Read the data
+    if (file.exists("data/hw2_synthetic.csv")) {
+      data <- read.csv("data/hw2_synthetic.csv", header = TRUE)
+    } else {
+      stop("FileNotFound: data file not found at 'data/hw2_synthetic.csv'.")
+    }
+
+    # Preprocess data to create the kernel terms
+    data$x1_sq <- data$x1^2
+    data$x2_sq <- data$x2^2
+    data$x1_x2 <- data$x1 * data$x2
+    data <- data[, c("x1", "x2", "x1_sq", "x2_sq", "x1_x2", "y")]
+    plot(data)
+    ```
+
+    ```r
+    linreg_poisson <- "
+        // Input arguments to the model
+        data {
+            int<lower=0> n;         // Number of observations
+            int<lower=0> k;         // Number of features
+            matrix[n, k] X;         // Observation matrix
+            int y[n];               // Integer response vector
+        }
+        parameters {
+            vector[k] beta;         // Coefficients
+        }
+        transformed_parameters {
+            vector[n] lambda: exp(X * beta); // Poisson rate
+        }
+        model {
+            y ~ poisson(lambda);    // Poisson emission
+        }
+    "
+    linreg_poisson_model <- stan_model(model_code = linreg_poisson)
+    ```
+
+\pagebreak
