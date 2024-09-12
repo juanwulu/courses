@@ -7,12 +7,12 @@ author: "Juanwu Lu^[College of Engineering, Purdue University, West Lafayette, I
 description: "Homework 2 for STAT 656 at Purdue University"
 output: pdf_document
 ---
-
-```{r}
+```{r message = FALSE}
 library("bayesplot")
 library("ggplot2")
 library("rstan")
 options(repr.plot.width = 6, repr.plot.height = 4)
+bayesplot_theme_set(theme_default(base_size = 24, base_family = "sans"))
 ```
 
 # Synthetic Data
@@ -24,7 +24,6 @@ $$
 Here, the exponential is to ensure the Poisson rate is always positive, and the function $f(x_{i},\beta) = \beta_{0} + \beta_{1}x_{i,1} + \beta_{2}x_{i,2} + \beta_{3}x^{2}_{i,1} + \beta_{4}x^{2}_{i,2} + \beta_{5}x_{i,1}x_{i,2}$.
 
 1. (25 points) **Solution**:
-
     ```{r}
     # Read the data
     if (file.exists("data/hw2_synthetic.csv")) {
@@ -32,35 +31,84 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
     } else {
       stop("FileNotFound: data file not found at 'data/hw2_synthetic.csv'.")
     }
+    summary(data)
+    ```
 
+    Since the model is a Poisson regression, the logarithm of the response variable is assumed to be a linear combination of the kernel features. The visualization below shows the relationship between the logarithm of the response variable and the kernel features. It is shown that $\log{y}$ is roughly positively correlated with $x_{1}$ and $x_{1}x_{2}$, and roughly negatively correlated with $x_{2}$, $x_{1}^{2}$, and $x_{2}^{2}$.
+    ```{r}
     # Preprocess data to create the kernel terms
     data$x1_sq <- data$x1^2
     data$x2_sq <- data$x2^2
     data$x1_x2 <- data$x1 * data$x2
-    data <- data[, c("x1", "x2", "x1_sq", "x2_sq", "x1_x2", "y")]
-    plot(data)
+    data$log_y <- log(data$y + 1)
+    data <- data[, c("x1", "x2", "x1_sq", "x2_sq", "x1_x2", "y", "log_y")]
+    plot(data[, c("x1", "x2", "x1_sq", "x2_sq", "x1_x2", "log_y")])
     ```
 
-    ```r
-    linreg_poisson <- "
+    Therefore, the weights $\beta_{i}$ can be both positive and negative. Given no prior knowledge on the features, I choose a non-informative prior for the weights, _i.e.,_ isotropic normal distribution centered at $0$: $\mathcal{N}(0, \sigma^2\mathbf{I})$. The Stan model is implemented as follows:
+
+    ```{r message = FALSE, warning = FALSE}
+    linreg_poisson_code <- "
         // Input arguments to the model
         data {
             int<lower=0> n;         // Number of observations
             int<lower=0> k;         // Number of features
-            matrix[n, k] X;         // Observation matrix
-            int y[n];               // Integer response vector
+            real<lower=0> pr_std;   // Prior coefficients standard deviation
+            matrix[n, k] x;         // Observation matrix
+            int<lower=0> y[n];                  // Integer response vector
         }
+
+        // Latent parameters of interests
         parameters {
             vector[k] beta;         // Coefficients
         }
-        transformed_parameters {
-            vector[n] lambda: exp(X * beta); // Poisson rate
+
+        // Transformed parameters for MCMC sampling
+        transformed parameters {
+            vector[n] lambda = exp(x * beta);    // Poisson rate
         }
+
+        // PoissoXn Linear Regression Model
         model {
-            y ~ poisson(lambda);    // Poisson emission
+            beta ~ normal(0, pr_std);           // Prior on the coefficients
+            y ~ poisson(lambda);                // Poisson emission
+        }
+
+        // Retrieve MCMC samples
+        generated quantities {
+            real y_hat[n];
+            y_hat = poisson_rng(lambda);
         }
     "
-    linreg_poisson_model <- stan_model(model_code = linreg_poisson)
+    linreg_poisson_model <- stan_model(
+      model_name = "poisson_regression",
+      model_code = linreg_poisson_code
+    )
+    x <- data[, c("x1", "x2", "x1_sq", "x2_sq", "x1_x2")]
+    x[, "intercept"] <- 1
+    y <- data$y
+    reg_data <- list(n = nrow(x), k = ncol(x), pr_std = 1.0, x = x, y = y)
+    samples <- sampling(
+      linreg_poisson_model,
+      data = reg_data,
+      iter = 10000,
+      warmup = 2000,
+      chains = 4,
+      seed = 42,
+      show_messages = FALSE,
+    )
+    ```
+
+    The visualization below shows the posterior distributions of the coefficients $\boldsymbol{\beta} = \left\{\beta_{0},\ldots,\beta_{5}\right\}$ with 95\% intervals.
+
+    ```{r fig.cap = "Posterior Distributions of the Coefficients."}
+    samples <- as.data.frame(samples)
+    colnames(samples)[seq_len(ncol(x))] <- colnames(x)
+    mcmc_areas(
+      samples[, seq_len(ncol(x))],
+      pars = colnames(x),
+      prob = 0.95
+    )
     ```
 
 \pagebreak
