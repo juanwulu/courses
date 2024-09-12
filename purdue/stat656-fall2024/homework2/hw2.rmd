@@ -45,9 +45,9 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
     plot(data[, c("x1", "x2", "x1_sq", "x2_sq", "x1_x2", "log_y")])
     ```
 
-    Therefore, the weights $\beta_{i}$ can be both positive and negative. Given no prior knowledge on the features, I choose a non-informative prior for the weights, _i.e.,_ isotropic normal distribution centered at $0$: $\mathcal{N}(0, \sigma^2\mathbf{I})$. The Stan model is implemented as follows:
+    Therefore, the weights $\beta_{i}$ can be both positive and negative. Given no prior knowledge on the features, I choose a non-informative prior for the weights, _i.e.,_ the isotropic standard normal distribution: $\mathcal{N}(0, \mathbf{I})$. The Stan model is implemented as follows:
 
-    ```{r message = FALSE, warning = FALSE}
+    ```{r message = FALSE, results = "hide"}
     linreg_poisson_code <- "
         // Input arguments to the model
         data {
@@ -99,15 +99,18 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
     )
     ```
 
-    The visualization below shows the posterior distributions of the coefficients $\boldsymbol{\beta} = \left\{\beta_{0},\ldots,\beta_{5}\right\}$ with 95\% intervals.
+    The visualization below shows the posterior distributions of the coefficients $\boldsymbol{\beta} = \left\{\beta_{0},\ldots,\beta_{5}\right\}$ with 95\% intervals. Based on the results, the coefficients of $x_{1}^2$, and $x_{1}x_{2}$ are close to zero (_i.e.,_ with zero within its 95\% posterior interval), while the coefficients of $x_{1}$, $x_{2}$, and $x_{2}^2$ are significantly different from zero. Therefore, the terms $x_{1}$, $x_{2}$, and $x_{2}^2$ are important in the expression for $f(x)$.
 
-    ```{r fig.cap = "Posterior Distributions of the Coefficients."}
+    ```{r fig.cap = "Posterior Distributions of the Coefficients.", message = FALSE}
     samples <- as.data.frame(samples)
     colnames(samples)[seq_len(ncol(x))] <- colnames(x)
-    mcmc_areas(
+    fig <- mcmc_areas(
       samples[, seq_len(ncol(x))],
       pars = colnames(x),
-      prob = 0.95
+      prob = 0.95,
+    )
+    fig + scale_y_discrete(
+      labels = parse(text = paste0("beta[", c(1:(ncol(x) - 1), 0), "]"))
     )
     ```
 
