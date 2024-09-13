@@ -10,9 +10,10 @@ output: pdf_document
 ```{r message = FALSE}
 library("bayesplot")
 library("ggplot2")
+library("patchwork")
 library("rstan")
 options(repr.plot.width = 6, repr.plot.height = 4)
-bayesplot_theme_set(theme_default(base_size = 24, base_family = "sans"))
+bayesplot_theme_set(theme_default(base_size = 12, base_family = "sans"))
 ```
 
 # Synthetic Data
@@ -23,7 +24,10 @@ $$
 $$
 Here, the exponential is to ensure the Poisson rate is always positive, and the function $f(x_{i},\beta) = \beta_{0} + \beta_{1}x_{i,1} + \beta_{2}x_{i,2} + \beta_{3}x^{2}_{i,1} + \beta_{4}x^{2}_{i,2} + \beta_{5}x_{i,1}x_{i,2}$.
 
-1. (25 points) **Solution**:
+1. (25 points) With the provided data, perform a Bayesian analysis on the parameters of the model above to decide **which terms in the expression for $f(x)$ you think are important**. State clearly what your prior over $\beta$ is, and how you arrived at your conclusion, including any useful figures (especially of the posterior distribution). You can use Stan.
+
+    **Solution**:
+
     ```{r}
     # Read the data
     if (file.exists("data/hw2_synthetic.csv")) {
@@ -45,7 +49,7 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
     plot(data[, c("x1", "x2", "x1_sq", "x2_sq", "x1_x2", "log_y")])
     ```
 
-    Therefore, the weights $\beta_{i}$ can be both positive and negative. Given no prior knowledge on the features, I choose a non-informative prior for the weights, _i.e.,_ the isotropic standard normal distribution: $\mathcal{N}(0, \mathbf{I})$. The Stan model is implemented as follows:
+    Therefore, the weights $\beta_{i}$ can be both positive and negative. Given no prior knowledge on the features, I choose a non-informative prior for the weights, _i.e.,_ the isotropic normal distribution: $\mathcal{N}(0, 10^2\mathbf{I})$. The Stan model is implemented as follows:
 
     ```{r message = FALSE, results = "hide"}
     linreg_poisson_code <- "
@@ -87,13 +91,13 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
     x <- data[, c("x1", "x2", "x1_sq", "x2_sq", "x1_x2")]
     x[, "intercept"] <- 1
     y <- data$y
-    reg_data <- list(n = nrow(x), k = ncol(x), pr_std = 1.0, x = x, y = y)
-    samples <- sampling(
+    reg_data <- list(n = nrow(x), k = ncol(x), pr_std = 10.0, x = x, y = y)
+    nfit <- sampling(
       linreg_poisson_model,
       data = reg_data,
       iter = 10000,
       warmup = 2000,
-      chains = 4,
+      chains = 1,
       seed = 42,
       show_messages = FALSE,
     )
@@ -102,16 +106,78 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
     The visualization below shows the posterior distributions of the coefficients $\boldsymbol{\beta} = \left\{\beta_{0},\ldots,\beta_{5}\right\}$ with 95\% intervals. Based on the results, the coefficients of $x_{1}^2$, and $x_{1}x_{2}$ are close to zero (_i.e.,_ with zero within its 95\% posterior interval), while the coefficients of $x_{1}$, $x_{2}$, and $x_{2}^2$ are significantly different from zero. Therefore, the terms $x_{1}$, $x_{2}$, and $x_{2}^2$ are important in the expression for $f(x)$.
 
     ```{r fig.cap = "Posterior Distributions of the Coefficients.", message = FALSE}
-    samples <- as.data.frame(samples)
+    samples <- as.data.frame(nfit)
     colnames(samples)[seq_len(ncol(x))] <- colnames(x)
-    fig <- mcmc_areas(
+    mcmc_areas(
       samples[, seq_len(ncol(x))],
       pars = colnames(x),
       prob = 0.95,
     )
-    fig + scale_y_discrete(
-      labels = parse(text = paste0("beta[", c(1:(ncol(x) - 1), 0), "]"))
+    ```
+
+2. (25 points) Having decided which terms in $f$ are important, keep only those and discard the rest, resulting in a possibly simpler model. Now perform a Bayesian analysis over the parameters of this model. Note that you are using the data twice, once to select the model and next to fit it, but we will not worry about that. Compare the posteriors for both models.
+
+    **Solution**:
+
+    Based on the analysis in the previous question, the terms $x_{1}$, $x_{2}$, and $x_{2}^2$ are kept in the model. The new stan model is implemented as follows:
+
+    ```{r message = FALSE, results = "hide"}
+    x_simple <- x[, c("x1", "x2", "x2_sq", "intercept")]
+    reg_data_simple <- list(
+      n = nrow(x_simple),
+      k = ncol(x_simple),
+      pr_std = 10.0,
+      x = x_simple,
+      y = y
+    )
+    nfit_simple <- sampling(
+      linreg_poisson_model,
+      data = reg_data_simple,
+      iter = 10000,
+      warmup = 2000,
+      chains = 1,
+      seed = 42,
+      show_messages = FALSE,
     )
     ```
+
+    The visualization below shows the posterior distributions of the coefficients $\boldsymbol{\beta}^\prime = \left\{\beta_{0},\beta_{1},\beta_{2},\beta_{4}\right\}$ with 95\% intervals. The results show that the coefficients of $x_{1}$, $x_{2}$, and $x_{2}^2$ are all significantly different from zero (_i.e.,_ with zero outside its 95% posterior interval).
+
+    ```{r fig.cap = "Posterior Distributions of the Coefficients.", message = FALSE}
+    samples_simple <- as.data.frame(nfit_simple)
+    colnames(samples_simple)[seq_len(ncol(x_simple))] <- colnames(x_simple)
+    mcmc_areas(
+      samples_simple[, seq_len(ncol(x_simple))],
+      pars = colnames(x_simple),
+      prob = 0.95,
+    )
+    ```
+
+    Compared to the model from the previous question, the posterior distributions of the coefficients in this simpler model are more concentrated around its mean, which indicates that the simpler model is more confident about the estimation.
+
+3. (25 points) Perform posterior predictive checks for both models, being sure to explain what you are doing. Which model do you think fits the data better?
+
+    **Solution**:
+
+    The posterior predictive checks (PPC) are performed to evaluate the goodness-of-fit of the models. The PPC is done by comparing the observed data with the data simulated from the posterior predictive distribution. Figure 3 shows the posterior predictive distributions of the two models. The results show that the simpler model fits data better than the full model since the posterior predictive distribution of the simpler model is more concentrated around the observed data. As a result, the observed data should have a higher posterior predictive density under the simpler model.
+
+    ```{r fig.cap = "Overlay of the Posterior Predictive Distributions.", message = FALSE}
+    y_hat <- extract(nfit)$y_hat
+    y_hat_simple <- extract(nfit_simple)$y_hat
+    plot1 <- ppc_dens_overlay(
+      yrep = log(y_hat + 1), y = log(data$y + 1)
+    ) + ggplot2::labs(
+      title = "Full Model", x = expression("log(y + 1)"), y = "Density"
+    )
+    plot2 <- ppc_dens_overlay(
+      yrep = log(y_hat_simple + 1), y = log(data$y + 1)
+    ) + ggplot2::labs(
+      title = "Simple Model", x = expression("log(y + 1)"), y = "Density"
+    )
+    plot1 + plot2
+    ```
+
+
+4. (25 points) Use the results from the second model to create a contour plot showing the log average Poison intensity as a function of $x$. In other words, plot $\log\mathbb{E}_{p(\beta|\boldsymbol{x},\boldsymbol{y})}[\exp\left(f(\boldsymbol{x},\boldsymbol{\beta})\right)]$ as a function of the two components of $x$ (you can restrict the component ranges from $-10$ to $+10$).
 
 \pagebreak
