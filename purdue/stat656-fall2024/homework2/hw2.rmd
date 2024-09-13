@@ -178,6 +178,44 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
     ```
 
 
-4. (25 points) Use the results from the second model to create a contour plot showing the log average Poison intensity as a function of $x$. In other words, plot $\log\mathbb{E}_{p(\beta|\boldsymbol{x},\boldsymbol{y})}[\exp\left(f(\boldsymbol{x},\boldsymbol{\beta})\right)]$ as a function of the two components of $x$ (you can restrict the component ranges from $-10$ to $+10$).
+4. (25 points) Use the results from the second model to create a contour plot showing the log average Poisson intensity as a function of $x$. In other words, plot $\log\mathbb{E}_{p(\beta|\boldsymbol{x},\boldsymbol{y})}[\exp\left(f(\boldsymbol{x},\boldsymbol{\beta})\right)]$ as a function of the two components of $x$ (you can restrict the component ranges from $-10$ to $+10$).
+
+    **Solution**:
+
+    The code below generates the contour plot as requested.
+
+    ```{r}
+    log_avg_intensity <- function(x1, x2, weights) {
+      intensity <- weights[, 1] * x1 +
+        weights[, 2] * x2 +
+        weights[, 3] * x2^2 +
+        weights[, 4]
+      out <- log(mean(exp(intensity)))
+      return(out)
+    }
+
+    x1 <- seq(-10, 10, 0.5)
+    x2 <- seq(-10, 10, 0.5)
+    grid <- expand.grid(x1 = x1, x2 = x2)
+    weight_samples <- samples_simple[, 1:4]
+    z <- mapply(
+      function(x1, x2) log_avg_intensity(x1, x2, weight_samples),
+      grid$x1,
+      grid$x2
+    )
+    z <- matrix(z, nrow = length(x1), ncol = length(x2))
+    col <- hcl.colors(10, "YlOrRd")
+    contour(
+      x1,
+      x2,
+      z,
+      col = col,
+      xlab = expression("x[1]"),
+      ylab = expression("x[2]"),
+      main = "Log Average Intensity"
+    )
+    ```
 
 \pagebreak
+
+# Applied Problem
