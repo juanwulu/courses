@@ -184,7 +184,7 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
 
     The code below generates the contour plot as requested.
 
-    ```{r}
+    ```{r echo = FALSE, eval = FALSE}
     log_avg_intensity <- function(x1, x2, weights) {
       intensity <- weights[, 1] * x1 +
         weights[, 2] * x2 +
@@ -219,3 +219,48 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
 \pagebreak
 
 # Applied Problem
+
+Scientists at the Notlem lab are researching the conversion of stem cells into pancreatic $\beta$-cells to treat patients with type $1$ diabetes. They recently developed two new chmical modulators for improved conversion, and wish to identify their **concentration settings that maximize conversion**.
+
+The scientists also state that:
+
+- their resource consraints limit the *number of plates to $3$*. Since each plate has $24$ wells, you can get **at most $72$ measurements**.
+- their time constraints limit the *number of experimental runs to $2$*. Thus you can tell the scientists $24$ pairs of concentrations followed by $48$, or you can tell them $48$ pairs followed by $24$. In either case, you can wait for their measurements for the first set before choosing the concentrations for the second.
+- you should only consider concentrations between **$0$ and $80$ for the first chemical modulator**, and between **$0$ and $30$ for the second chemical modulator**, because anything outside this region is not thought to improve conversion. and that
+- **polynomial models of conversion** as a function of chemical modulators' concentrations (*e.g., $f(x,\beta)$ like the previous question, but possibly with cubic or even higher terms*) have been shown to enjoy some measure of success for this type of problem in previous literature. (Unlike the earlier question, here the measurements are **real valued**, so you don't need the $\exp$ and Poisson parts, just Gaussian noise.)
+
+Your task in this problem is to:
+
+- tell the scientists the specific pairs of concentrations to run in the study, explaining your thinking
+- analyze the resulting (cumulative) data to build a Bayesian regression model of stem cell conversion as a function of the two chemical modulators' concentrations,
+- use the model to create a **contour plot** of the posterior predictive mean of conversion as a function of concentration settings,
+- use the model to calculate the **posterior predictive distribution** of the concentraition settings that yield maximum conversion, and finally
+- construct the posterior predictive distribution of the conversion corresponding to *a specific point prediction of the concentration* that yields **maximum conversion**.
+
+**Solution**:
+
+In this problem, we formulate the Gaussian linear regression model. Denote the conversion rate as $\boldsymbol{y} = \left\{y_{1},\ldots,y_{n}\right\}$, and the concentration of the pair of chemical modulators as $\boldsymbol{x}_{i} = (x_{i,1}, x_{i,2})$, the model is formulated as
+$$
+  y_{i} | \beta \sim \mathcal{N}(f(\boldsymbol{x}_{i}, \beta), \sigma^{2}).
+$$
+
+Since we have already known that the concentration of the first chemical modulator is between $0$ and $80$, and the concentration of the second chemical modulator is between $0$ and $30$, it is reasonable to introduce two new variables $z_{1}$ and $z_{2}$ such that
+$$
+  x_{i,1} = \frac{80}{1 + e^{-z_{1}}}, \quad x_{i,2} = \frac{30}{1 + e^{-z_{2}}}.
+$$
+
+```{r}
+# Read data
+if (file.exists("data/hw2_init_result.csv")) {
+  df_1 <- read.csv("data/hw2_init_result.csv", header = FALSE, sep = " ")
+} else {
+  stop("FileNotFound: data not found at 'data/hw2_init_result.csv'.")
+}
+colnames(df_1) <- c("x1", "x2", "y")
+summary(df_1)
+
+# Preprocess the features through polynomial expansion
+df_1$z1 <- log(df_1$x1)
+```
+
+According to the visualization, the conversion rate is
