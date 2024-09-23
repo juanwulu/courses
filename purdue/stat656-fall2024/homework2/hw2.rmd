@@ -12,7 +12,6 @@ library("bayesplot")
 library("ggplot2")
 library("patchwork")
 library("rstan")
-options(repr.plot.width = 6, repr.plot.height = 4)
 bayesplot_theme_set(theme_default(base_size = 12, base_family = "sans"))
 ```
 
@@ -53,7 +52,6 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
 
     ```{r message = FALSE, results = "hide"}
     linreg_poisson_code <- "
-        // Input arguments to the model
         data {
             int<lower=0> n;         // Number of observations
             int<lower=0> k;         // Number of features
@@ -62,23 +60,19 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
             int<lower=0> y[n];                  // Integer response vector
         }
 
-        // Latent parameters of interests
         parameters {
             vector[k] beta;         // Coefficients
         }
 
-        // Transformed parameters for MCMC sampling
         transformed parameters {
             vector[n] lambda = exp(x * beta);    // Poisson rate
         }
 
-        // PoissoXn Linear Regression Model
         model {
             beta ~ normal(0, pr_std);           // Prior on the coefficients
             y ~ poisson(lambda);                // Poisson emission
         }
 
-        // Retrieve MCMC samples
         generated quantities {
             real y_hat[n];
             y_hat = poisson_rng(lambda);
@@ -95,7 +89,7 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
     nfit <- sampling(
       linreg_poisson_model,
       data = reg_data,
-      iter = 10000,
+      iter = 5000,
       warmup = 2000,
       chains = 1,
       seed = 42,
@@ -105,7 +99,7 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
 
     The visualization below shows the posterior distributions of the coefficients $\boldsymbol{\beta} = \left\{\beta_{0},\ldots,\beta_{5}\right\}$ with 95\% intervals. Based on the results, the coefficients of $x_{1}^2$, and $x_{1}x_{2}$ are close to zero (_i.e.,_ with zero within its 95\% posterior interval), while the coefficients of $x_{1}$, $x_{2}$, and $x_{2}^2$ are significantly different from zero. Therefore, the terms $x_{1}$, $x_{2}$, and $x_{2}^2$ are important in the expression for $f(x)$.
 
-    ```{r fig.cap = "Posterior Distributions of the Coefficients.", message = FALSE}
+    ```{r fig.align = 'center', fig.cap = "Posterior Distributions of the Coefficients.", message = FALSE}
     samples <- as.data.frame(nfit)
     colnames(samples)[seq_len(ncol(x))] <- colnames(x)
     mcmc_areas(
@@ -133,7 +127,7 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
     nfit_simple <- sampling(
       linreg_poisson_model,
       data = reg_data_simple,
-      iter = 10000,
+      iter = 5000,
       warmup = 2000,
       chains = 1,
       seed = 42,
@@ -143,7 +137,7 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
 
     The visualization below shows the posterior distributions of the coefficients $\boldsymbol{\beta}^\prime = \left\{\beta_{0},\beta_{1},\beta_{2},\beta_{4}\right\}$ with 95\% intervals. The results show that the coefficients of $x_{1}$, $x_{2}$, and $x_{2}^2$ are all significantly different from zero (_i.e.,_ with zero outside its 95% posterior interval).
 
-    ```{r fig.cap = "Posterior Distributions of the Coefficients.", message = FALSE}
+    ```{r fig.align = 'center', fig.cap = "Posterior Distributions of the Simple Model Coefficients.", message = FALSE}
     samples_simple <- as.data.frame(nfit_simple)
     colnames(samples_simple)[seq_len(ncol(x_simple))] <- colnames(x_simple)
     mcmc_areas(
@@ -159,22 +153,24 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
 
     **Solution**:
 
-    The posterior predictive checks (PPC) are performed to evaluate the goodness-of-fit of the models. The PPC is done by comparing the observed data with the data simulated from the posterior predictive distribution. Figure 3 shows the posterior predictive distributions of the two models. The results show that the simpler model fits data better than the full model since the posterior predictive distribution of the simpler model is more concentrated around the observed data. As a result, the observed data should have a higher posterior predictive density under the simpler model.
+    The posterior predictive checks (PPC) are performed to evaluate the goodness-of-fit of the models. The PPC is done by comparing the mean and standard deviation of observed data with ones of the data simulated from the posterior predictive distribution. Figure 3 shows that the simpler model fits data slightly better than the full model for that the average mean and standard deviation of the simulated data are closer to the observed data in the simpler model.
 
-    ```{r fig.cap = "Overlay of the Posterior Predictive Distributions.", message = FALSE}
+    ```{r fig.align='center', fig.cap = "Posterior Predictive Statistics.", message = FALSE}
     y_hat <- extract(nfit)$y_hat
     y_hat_simple <- extract(nfit_simple)$y_hat
-    plot1 <- ppc_dens_overlay(
-      yrep = log(y_hat + 1), y = log(data$y + 1)
-    ) + ggplot2::labs(
-      title = "Full Model", x = expression("log(y + 1)"), y = "Density"
+    plot1 <- ppc_stat(
+      y = data$y, yrep = y_hat
     )
-    plot2 <- ppc_dens_overlay(
-      yrep = log(y_hat_simple + 1), y = log(data$y + 1)
-    ) + ggplot2::labs(
-      title = "Simple Model", x = expression("log(y + 1)"), y = "Density"
+    plot2 <- ppc_stat(
+      y = data$y, yrep = y_hat_simple
     )
-    plot1 + plot2
+    plot3 <- ppc_stat(
+      y = data$y, yrep = y_hat, stat = "sd"
+    )
+    plot4 <- ppc_stat(
+      y = data$y, yrep = y_hat_simple, stat = "sd"
+    )
+    (plot1 + plot2) / (plot3 + plot4)
     ```
 
 
@@ -184,7 +180,7 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
 
     The code below generates the contour plot as requested.
 
-    ```{r echo = FALSE, eval = FALSE}
+    ```{r}
     log_avg_intensity <- function(x1, x2, weights) {
       intensity <- weights[, 1] * x1 +
         weights[, 2] * x2 +
@@ -204,14 +200,14 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
       grid$x2
     )
     z <- matrix(z, nrow = length(x1), ncol = length(x2))
-    col <- hcl.colors(10, "YlOrRd")
+    col <- hcl.colors(10, "Temps")
     contour(
       x1,
       x2,
       z,
       col = col,
-      xlab = expression("x[1]"),
-      ylab = expression("x[2]"),
+      xlab = expression("x"[1]),
+      ylab = expression("x"[2]),
       main = "Log Average Intensity"
     )
     ```
@@ -244,10 +240,7 @@ $$
   y_{i} | \beta \sim \mathcal{N}(f(\boldsymbol{x}_{i}, \beta), \sigma^{2}).
 $$
 
-Since we have already known that the concentration of the first chemical modulator is between $0$ and $80$, and the concentration of the second chemical modulator is between $0$ and $30$, it is reasonable to introduce two new variables $z_{1}$ and $z_{2}$ such that
-$$
-  x_{i,1} = \frac{80}{1 + e^{-z_{1}}}, \quad x_{i,2} = \frac{30}{1 + e^{-z_{2}}}.
-$$
+Since we have already known that the concentration of the first chemical modulator is between $0$ and $80$, and the concentration of the second chemical modulator is between $0$ and $30$, it is reasonable to first scale the two features to the range of $[0, 1]$. Then, we can expand the features through polynomial expansion.
 
 ```{r}
 # Read data
@@ -259,8 +252,147 @@ if (file.exists("data/hw2_init_result.csv")) {
 colnames(df_1) <- c("x1", "x2", "y")
 summary(df_1)
 
+# Preprocess the features through normalization
+df_1$x1 <- df_1$x1 / 80
+df_1$x2 <- df_1$x2 / 30
+
 # Preprocess the features through polynomial expansion
-df_1$z1 <- log(df_1$x1)
+df_1$x1_sq <- df_1$x1^2
+df_1$x2_sq <- df_1$x2^2
+df_1$x1_x2 <- df_1$x1 * df_1$x2
+df_1$x1_cb <- df_1$x1^3
+df_1$x2_cb <- df_1$x2^3
+df_1$x1_x2_sq <- df_1$x1 * df_1$x2^2
+df_1$x1_sq_x2 <- df_1$x1^2 * df_1$x2
+cols <- c(
+  "x1",
+  "x2",
+  "x1_sq",
+  "x2_sq",
+  "x1_x2",
+  "x1_cb",
+  "x2_cb",
+  "x1_x2_sq",
+  "x1_sq_x2",
+  "y"
+)
+plot(df_1[, cols])
 ```
 
-According to the visualization, the conversion rate is
+
+As in the previous question, we choose a non-informative normal prior over the weights, _i.e.,_ the isotropic normal distribution: $\mathcal{N}(0, 10^2\mathbf{I})$ and a non-informative half-Cauchy prior over the noise, _i.e.,_ $\sigma\sim\text{Cauchy}(0.0, 1.0)$. The Stan model is implemented as follows:
+
+```{r message = FALSE, results = "hide"}
+linreg_gaussian_code <- "
+    data {
+        int<lower=0> n;         // Number of observations
+        int<lower=0> k;         // Number of features
+        real<lower=0> pr_std;   // Prior coefficients standard deviation
+        matrix[n, k] x;         // Observation matrix
+        vector[n] y;            // Real-valued response vector
+    }
+
+    parameters {
+        vector[k] beta;         // Coefficients
+        real<lower=0> sigma;    // Noise standard deviation
+    }
+
+    transformed parameters {
+        vector[n] mu = x * beta;    // Mean of the Gaussian
+    }
+
+    model {
+        beta ~ normal(0, pr_std);   // Prior on the coefficients
+        sigma ~ cauchy(0, 1);       // Prior on the noise
+        y ~ normal(mu, sigma);      // Gaussian emission
+    }
+
+    generated quantities {
+        real y_hat[n];
+        y_hat = normal_rng(mu, sigma);
+    }
+"
+linreg_gaussian_model <- stan_model(
+  model_name = "gaussian_regression",
+  model_code = linreg_gaussian_code
+)
+x <- df_1[, cols[1:(length(cols) - 1)]]
+x$intercept <- 1
+y <- df_1$y
+reg_data <- list(n = nrow(x), k = ncol(x), pr_std = 10.0, x = x, y = y)
+nfit <- sampling(
+  linreg_gaussian_model,
+  data = reg_data,
+  iter = 10000,
+  warmup = 4000,
+  chains = 1,
+  seed = 42,
+  show_messages = FALSE,
+)
+```
+
+The visualization below shows the posterior distributions of the coefficients $\boldsymbol{\beta}$ with 95\% intervals. Based on the results, the coefficients of $x_{1}^2$, $x_{2}^2$, $x_{1}x_{2}$, $x_{1}^3$, $x_{2}^3$, $x_{1}x_{2}^2$, and $x_{1}^2x_{2}$ are close to zero (_i.e.,_ with zero within its 95% posterior interval), while the coefficients of $x_{1}$ and $x_{2}$ are significantly different from zero. Therefore, the terms $x_{1}$ and $x_{2}$ are important in the expression for $f(x)$.
+
+```{r fig.cap = "Posterior Distributions of the Coefficients.", message = FALSE}
+samples <- as.data.frame(nfit)
+colnames(samples)[seq_len(ncol(x))] <- colnames(x)
+mcmc_areas(
+  samples[, seq_len(ncol(x))],
+  pars = colnames(x),
+  prob = 0.95,
+)
+```
+
+To support the design of the second experiment, similar to the previous question, we can draw the contour plot of the posterior predictive mean of conversion as a function of concentration settings. The code below generates the contour plot as requested.
+```{r}
+log_avg_intensity <- function(x1, x2, weights) {
+  intensity <- weights[, 1] * x1 +
+    weights[, 2] * x2 +
+    weights[, 3] * x1^2 +
+    weights[, 4] * x2^2 +
+    weights[, 5] * x1 * x2 +
+    weights[, 6] * x1^3 +
+    weights[, 7] * x2^3 +
+    weights[, 8] * x1 * x2^2 +
+    weights[, 9] * x1^2 * x2 +
+    weights[, 10]
+  out <- mean(intensity)
+  return(out)
+}
+
+x1 <- seq(0, 1, 0.05)
+x2 <- seq(0, 1, 0.05)
+grid <- expand.grid(x1 = x1, x2 = x2)
+weight_samples <- samples[, 1:10]
+z <- mapply(
+  function(x1, x2) log_avg_intensity(x1, x2, weight_samples),
+  grid$x1,
+  grid$x2
+)
+z <- matrix(z, nrow = length(x1), ncol = length(x2))
+col <- hcl.colors(10, "Temps")
+contour(
+  x1,
+  x2,
+  z,
+  col = col,
+  xlab = expression("x"[1]),
+  ylab = expression("x"[2]),
+  main = "Posterior Predictive Mean of Conversion"
+)
+```
+
+The contour indicates that for $x_{1} > 0.9$ and $0.4 \leq x_{2} \leq 0.8$, the conversion rate can be maximized. Therefore, we uniformly sample $48$ pairs of concentrations from this region for the second experiment.
+```{r}
+set.seed(42)
+x1 <- runif(48, 0.9, 1) * 80
+x2 <- runif(48, 0.4, 0.8) * 30
+samples <- data.frame(x1 = x1, x2 = x2)
+write.table(
+  samples,
+  "data/hw2_second_guess.csv",
+  row.names = FALSE,
+  col.names = FALSE,
+  sep = " "
+)
+```
