@@ -6,7 +6,10 @@ title: |
 author: "Juanwu Lu^[College of Engineering, Purdue University, West Lafayette, IN, USA]"
 description: "Homework 2 for STAT 656 at Purdue University"
 output: pdf_document
+fig_width: 6
+fig_height: 4
 ---
+
 ```{r message = FALSE}
 library("bayesplot")
 library("ggplot2")
@@ -38,19 +41,21 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
     ```
 
     Since the model is a Poisson regression, the logarithm of the response variable is assumed to be a linear combination of the kernel features. The visualization below shows the relationship between the logarithm of the response variable and the kernel features. It is shown that $\log{y}$ is roughly positively correlated with $x_{1}$ and $x_{1}x_{2}$, and roughly negatively correlated with $x_{2}$, $x_{1}^{2}$, and $x_{2}^{2}$.
-    ```{r}
+    ```{r, fig.align = 'center'}
     # Preprocess data to create the kernel terms
     data$x1_sq <- data$x1^2
     data$x2_sq <- data$x2^2
     data$x1_x2 <- data$x1 * data$x2
     data$log_y <- log(data$y + 1)
     data <- data[, c("x1", "x2", "x1_sq", "x2_sq", "x1_x2", "y", "log_y")]
-    plot(data[, c("x1", "x2", "x1_sq", "x2_sq", "x1_x2", "log_y")])
+    plot(
+      data[, c("x1", "x2", "x1_sq", "x2_sq", "x1_x2", "log_y")]
+    )
     ```
 
     Therefore, the weights $\beta_{i}$ can be both positive and negative. Given no prior knowledge on the features, I choose a non-informative prior for the weights, _i.e.,_ the isotropic normal distribution: $\mathcal{N}(0, 10^2\mathbf{I})$. The Stan model is implemented as follows:
 
-    ```{r message = FALSE, results = "hide"}
+    ```{r, message = FALSE, results = "hide"}
     linreg_poisson_code <- "
         data {
             int<lower=0> n;         // Number of observations
@@ -97,15 +102,22 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
     )
     ```
 
-    The visualization below shows the posterior distributions of the coefficients $\boldsymbol{\beta} = \left\{\beta_{0},\ldots,\beta_{5}\right\}$ with 95\% intervals. Based on the results, the coefficients of $x_{1}^2$, and $x_{1}x_{2}$ are close to zero (_i.e.,_ with zero within its 95\% posterior interval), while the coefficients of $x_{1}$, $x_{2}$, and $x_{2}^2$ are significantly different from zero. Therefore, the terms $x_{1}$, $x_{2}$, and $x_{2}^2$ are important in the expression for $f(x)$.
+    The visualization below shows the posterior distributions of the coefficients $\boldsymbol{\beta} = \left\{\beta_{0},\ldots,\beta_{5}\right\}$ with 95\% intervals. Based on the results, the coefficients of $x_{1}^2$, and $x_{1}x_{2}$ are close to zero while the coefficients of $x_{1}$, $x_{2}$, and $x_{2}^2$ are different from zero. Meanwhile, the uncertainty of the coefficient posterior for $x_{1}$ are significantly larger than the others. Based on the result:
+    - the terms $x_{1}$ and $x_{2}^2$ are positively correlated with the response variable,
+    - the term $x_{2}$ is negatively correlated with the response variable, and
+    - the terms $x_{1}^2$ and $x_{1}x_{2}$ are not important in the expression for $f(x)$.
+    Therefore, we can simpilify the model by discarding the terms $x_{1}^2$ and $x_{1}x_{2}$.
 
-    ```{r fig.align = 'center', fig.cap = "Posterior Distributions of the Coefficients.", message = FALSE}
+    ```{r, fig.align = 'center'}
     samples <- as.data.frame(nfit)
     colnames(samples)[seq_len(ncol(x))] <- colnames(x)
     mcmc_areas(
       samples[, seq_len(ncol(x))],
       pars = colnames(x),
       prob = 0.95,
+    ) + labs(
+      title = "Posterior Distributions of Coefficients",
+      subtitle = "with medians and 95% intervals"
     )
     ```
 
@@ -137,25 +149,28 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
 
     The visualization below shows the posterior distributions of the coefficients $\boldsymbol{\beta}^\prime = \left\{\beta_{0},\beta_{1},\beta_{2},\beta_{4}\right\}$ with 95\% intervals. The results show that the coefficients of $x_{1}$, $x_{2}$, and $x_{2}^2$ are all significantly different from zero (_i.e.,_ with zero outside its 95% posterior interval).
 
-    ```{r fig.align = 'center', fig.cap = "Posterior Distributions of the Simple Model Coefficients.", message = FALSE}
+    ```{r fig.align = 'center', message = FALSE}
     samples_simple <- as.data.frame(nfit_simple)
     colnames(samples_simple)[seq_len(ncol(x_simple))] <- colnames(x_simple)
     mcmc_areas(
       samples_simple[, seq_len(ncol(x_simple))],
       pars = colnames(x_simple),
       prob = 0.95,
+    ) + labs(
+      title = "Posterior Distributions of Coefficients in Simple Model",
+      subtitle = "with medians and 95% intervals"
     )
     ```
 
-    Compared to the model from the previous question, the posterior distributions of the coefficients in this simpler model are more concentrated around its mean, which indicates that the simpler model is more confident about the estimation.
+    Compared to the model from the previous question, the posterior distributions of the coefficients in this simpler model are more concentrated around its mean, which indicates that the simpler model is more confident about the estimation (_i.e._ with lower posterior uncertainty).
 
 3. (25 points) Perform posterior predictive checks for both models, being sure to explain what you are doing. Which model do you think fits the data better?
 
     **Solution**:
 
-    The posterior predictive checks (PPC) are performed to evaluate the goodness-of-fit of the models. The PPC is done by comparing the mean and standard deviation of observed data with ones of the data simulated from the posterior predictive distribution. Figure 3 shows that the simpler model fits data slightly better than the full model for that the average mean and standard deviation of the simulated data are closer to the observed data in the simpler model.
+    The posterior predictive checks (PPC) are performed to evaluate the goodness-of-fit of the models. The PPC is done by comparing the mean and standard deviation of observed data with ones of the data simulated from the posterior predictive distribution. Figure 3 shows that the simpler model fits data slightly better than the full model for that the average mean and standard deviation of the simulated data are closer to the observed data in the simpler model. Moreover, compared to the original model, posterior predictive samples distribute more symmetric around the ground-truth mean.
 
-    ```{r fig.align='center', fig.cap = "Posterior Predictive Statistics.", message = FALSE}
+    ```{r, fig.align='center', message = FALSE}
     y_hat <- extract(nfit)$y_hat
     y_hat_simple <- extract(nfit_simple)$y_hat
     plot1 <- ppc_stat(
@@ -200,8 +215,8 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
       grid$x2
     )
     z <- matrix(z, nrow = length(x1), ncol = length(x2))
-    col <- hcl.colors(10, "Temps")
-    contour(
+    col <- hcl.colors(20, "Temps")
+    filled.contour(
       x1,
       x2,
       z,
@@ -216,11 +231,11 @@ Here, the exponential is to ensure the Poisson rate is always positive, and the 
 
 # Applied Problem
 
-Scientists at the Notlem lab are researching the conversion of stem cells into pancreatic $\beta$-cells to treat patients with type $1$ diabetes. They recently developed two new chmical modulators for improved conversion, and wish to identify their **concentration settings that maximize conversion**.
+Scientists at the Notlem lab are researching the conversion of stem cells into pancreatic $\beta$-cells to treat patients with type $1$ diabetes. They recently developed two new chemical modulators for improved conversion, and wish to identify their **concentration settings that maximize conversion**.
 
 The scientists also state that:
 
-- their resource consraints limit the *number of plates to $3$*. Since each plate has $24$ wells, you can get **at most $72$ measurements**.
+- their resource constraints limit the *number of plates to $3$*. Since each plate has $24$ wells, you can get **at most $72$ measurements**.
 - their time constraints limit the *number of experimental runs to $2$*. Thus you can tell the scientists $24$ pairs of concentrations followed by $48$, or you can tell them $48$ pairs followed by $24$. In either case, you can wait for their measurements for the first set before choosing the concentrations for the second.
 - you should only consider concentrations between **$0$ and $80$ for the first chemical modulator**, and between **$0$ and $30$ for the second chemical modulator**, because anything outside this region is not thought to improve conversion. and that
 - **polynomial models of conversion** as a function of chemical modulators' concentrations (*e.g., $f(x,\beta)$ like the previous question, but possibly with cubic or even higher terms*) have been shown to enjoy some measure of success for this type of problem in previous literature. (Unlike the earlier question, here the measurements are **real valued**, so you don't need the $\exp$ and Poisson parts, just Gaussian noise.)
@@ -230,7 +245,7 @@ Your task in this problem is to:
 - tell the scientists the specific pairs of concentrations to run in the study, explaining your thinking
 - analyze the resulting (cumulative) data to build a Bayesian regression model of stem cell conversion as a function of the two chemical modulators' concentrations,
 - use the model to create a **contour plot** of the posterior predictive mean of conversion as a function of concentration settings,
-- use the model to calculate the **posterior predictive distribution** of the concentraition settings that yield maximum conversion, and finally
+- use the model to calculate the **posterior predictive distribution** of the concentration settings that yield maximum conversion, and finally
 - construct the posterior predictive distribution of the conversion corresponding to *a specific point prediction of the concentration* that yields **maximum conversion**.
 
 **Solution**:
@@ -276,7 +291,6 @@ cols <- c(
   "x1_sq_x2",
   "y"
 )
-plot(df_1[, cols])
 ```
 
 
@@ -316,7 +330,12 @@ linreg_gaussian_model <- stan_model(
   model_name = "gaussian_regression",
   model_code = linreg_gaussian_code
 )
-x <- df_1[, cols[1:(length(cols) - 1)]]
+```
+
+In this first version of the model, we investigate only the linear combination of molecules. The following visualization presents the posterior distributions of the coefficients with medians and $68\%$ intervals. Based on the result, **the concentration of two chemical molecules are both positively affecting the conversion rate**.
+
+```{r, fig.align = 'center'}
+x <- df_1[, cols[1:2]]
 x$intercept <- 1
 y <- df_1$y
 reg_data <- list(n = nrow(x), k = ncol(x), pr_std = 10.0, x = x, y = y)
@@ -324,54 +343,164 @@ nfit <- sampling(
   linreg_gaussian_model,
   data = reg_data,
   iter = 10000,
-  warmup = 4000,
+  warmup = 5000,
   chains = 1,
   seed = 42,
   show_messages = FALSE,
 )
+samples <- as.data.frame(nfit)
+colnames(samples)[seq_len(ncol(x))] <- colnames(x)
+mcmc_intervals(
+  samples[, seq_len(ncol(x))],
+  pars = colnames(x),
+  prob = 0.68,
+) + labs(
+  title = "Posterior Distributions of Coefficients in Linear Model",
+  subtitle = "with medians and 68% intervals"
+)
 ```
 
-The visualization below shows the posterior distributions of the coefficients $\boldsymbol{\beta}$ with 95\% intervals. Based on the results, the coefficients of $x_{1}^2$, $x_{2}^2$, $x_{1}x_{2}$, $x_{1}^3$, $x_{2}^3$, $x_{1}x_{2}^2$, and $x_{1}^2x_{2}$ are close to zero (_i.e.,_ with zero within its 95% posterior interval), while the coefficients of $x_{1}$ and $x_{2}$ are significantly different from zero. Therefore, the terms $x_{1}$ and $x_{2}$ are important in the expression for $f(x)$.
+In this first version of the model, we investigate only the terms in a quadratic polynomial. The following visualization presents the posterior distributions of the coefficients with medians and $68\%$ intervals. Based on the result, **the square of concentration and interaction of two molecules have negative impacts on the conversion rate**.
 
-```{r fig.cap = "Posterior Distributions of the Coefficients.", message = FALSE}
+```{r, fig.align='center'}
+x <- df_1[, cols[1:5]]
+x$intercept <- 1
+y <- df_1$y
+reg_data <- list(n = nrow(x), k = ncol(x), pr_std = 10.0, x = x, y = y)
+nfit <- sampling(
+  linreg_gaussian_model,
+  data = reg_data,
+  iter = 10000,
+  warmup = 5000,
+  chains = 1,
+  seed = 42,
+  show_messages = FALSE,
+)
+samples <- as.data.frame(nfit)
+colnames(samples)[seq_len(ncol(x))] <- colnames(x)
+mcmc_intervals(
+  samples[, seq_len(ncol(x))],
+  pars = colnames(x),
+  prob = 0.68,
+) + labs(
+  title = "Posterior Distributions of Coefficients in Quadratic Model",
+  subtitle = "with medians and 68% intervals"
+)
+```
+
+Next, we investigate the terms in a cubic polynomial. The following visualization presents the posterior distributions of the coefficients with medians and $68\%$ intervals. Based on the result:
+- introducing cubic terms affect the coefficient posteriors of $x_{2}$, $x_{2}^2$, and $x_{1}x_{2}$;
+- the uncertainty of coefficients $x_{1}$, $x_{2}$, $x_{1}x_{2}$, $x_{1}^3$, $x_{1}^2x_{2}$, and $x_{1}x_{2}^2$ are lower than others.
+
+```{r, fig.align='center'}
+x <- df_1[, cols[1:9]]
+x$intercept <- 1
+y <- df_1$y
+reg_data <- list(n = nrow(x), k = ncol(x), pr_std = 10.0, x = x, y = y)
+nfit <- sampling(
+  linreg_gaussian_model,
+  data = reg_data,
+  iter = 10000,
+  warmup = 5000,
+  chains = 1,
+  seed = 42,
+  show_messages = FALSE,
+)
+samples <- as.data.frame(nfit)
+colnames(samples)[seq_len(ncol(x))] <- colnames(x)
+mcmc_intervals(
+  samples[, seq_len(ncol(x))],
+  pars = colnames(x),
+  prob = 0.68,
+) + labs(
+  title = "Posterior Distributions of Coefficients in Cubic Model",
+  subtitle = "with medians and 68% intervals"
+)
+```
+
+The following investigate if we discard the high uncertainty coefficients and only keep those with lower uncertainty in posterior. The results indicates that:
+- effects of $x_{2}$ and $x_{1}^3$ are close to zero;
+- in turns, the uncertainty in coefficient posteriors of $x_{1}x_{2}$ and $x_{1}^2x_{2}$ are significantly higher.
+```{r}
+x <- df_1[, cols[c(1, 2, 5, 6, 8, 9)]]
+x$intercept <- 1
+y <- df_1$y
+reg_data <- list(n = nrow(x), k = ncol(x), pr_std = 10.0, x = x, y = y)
+nfit <- sampling(
+  linreg_gaussian_model,
+  data = reg_data,
+  iter = 10000,
+  warmup = 5000,
+  chains = 1,
+  seed = 42,
+  show_messages = FALSE,
+)
 samples <- as.data.frame(nfit)
 colnames(samples)[seq_len(ncol(x))] <- colnames(x)
 mcmc_areas(
   samples[, seq_len(ncol(x))],
   pars = colnames(x),
-  prob = 0.95,
+  prob = 0.68,
+) + labs(
+  title = "Posterior Distributions of Coefficients",
+  subtitle = "with medians and 68% intervals"
+)
+```
+Finally, we keep only the terms with low uncertainties and plot the following visualization. From the result, we can see that despite there are relatively high uncertainties in coefficient posteriors, all distributions are significantly deviated from zeros. In this fitted model:
+- concentration of the first molecule and the interaction of two molecules positively affect the conversion rate;
+- cubic interaction of the concentrations $x_{1}^2x_{2}$ and $x_{1}x_{2}^2$ negatively impact the conversion rate.
+
+```{r}
+x <- df_1[, cols[c(1, 5, 8, 9)]]
+x$intercept <- 1
+y <- df_1$y
+reg_data <- list(n = nrow(x), k = ncol(x), pr_std = 10.0, x = x, y = y)
+nfit <- sampling(
+  linreg_gaussian_model,
+  data = reg_data,
+  iter = 10000,
+  warmup = 5000,
+  chains = 1,
+  seed = 42,
+  show_messages = FALSE,
+)
+samples <- as.data.frame(nfit)
+colnames(samples)[seq_len(ncol(x))] <- colnames(x)
+mcmc_areas(
+  samples[, seq_len(ncol(x))],
+  pars = colnames(x),
+  prob = 0.68,
+) + labs(
+  title = "Posterior Distributions of Coefficients",
+  subtitle = "with medians and 68% intervals"
 )
 ```
 
-To support the design of the second experiment, similar to the previous question, we can draw the contour plot of the posterior predictive mean of conversion as a function of concentration settings. The code below generates the contour plot as requested.
+
+
 ```{r}
 log_avg_intensity <- function(x1, x2, weights) {
   intensity <- weights[, 1] * x1 +
-    weights[, 2] * x2 +
-    weights[, 3] * x1^2 +
-    weights[, 4] * x2^2 +
-    weights[, 5] * x1 * x2 +
-    weights[, 6] * x1^3 +
-    weights[, 7] * x2^3 +
-    weights[, 8] * x1 * x2^2 +
-    weights[, 9] * x1^2 * x2 +
-    weights[, 10]
+    weights[, 2] * x1 * x2 +
+    weights[, 3] * x1 * x2^2 +
+    weights[, 4] * x1^2 * x2 +
+    weights[, 5]
   out <- mean(intensity)
   return(out)
 }
 
-x1 <- seq(0, 1, 0.05)
-x2 <- seq(0, 1, 0.05)
+x1 <- seq(0, 80, 1.0)
+x2 <- seq(0, 30, 1.0)
 grid <- expand.grid(x1 = x1, x2 = x2)
 weight_samples <- samples[, 1:10]
 z <- mapply(
-  function(x1, x2) log_avg_intensity(x1, x2, weight_samples),
+  function(x1, x2) log_avg_intensity(x1 / 80, x2 / 30, weight_samples),
   grid$x1,
   grid$x2
 )
 z <- matrix(z, nrow = length(x1), ncol = length(x2))
-col <- hcl.colors(10, "Temps")
-contour(
+col <- hcl.colors(20, "YlOrRd")
+filled.contour(
   x1,
   x2,
   z,
@@ -382,7 +511,7 @@ contour(
 )
 ```
 
-The contour indicates that for $x_{1} > 0.9$ and $0.4 \leq x_{2} \leq 0.8$, the conversion rate can be maximized. Therefore, we uniformly sample $48$ pairs of concentrations from this region for the second experiment.
+The contour indicates that for $72 \leq x_{1} \leq 80$ and $12 \leq x_{2} \leq 24$, the conversion rate can be maximized. Therefore, we uniformly sample $48$ pairs of concentrations from this region for the second experiment.
 ```{r}
 set.seed(42)
 x1 <- runif(48, 0.9, 1) * 80
@@ -394,5 +523,203 @@ write.table(
   row.names = FALSE,
   col.names = FALSE,
   sep = " "
+)
+```
+
+We ran the experiments on the second experiment and get the following observations. As we expected, the range and mean of observed conversion rate indicate that we have observed a higher conversion rate than the first experiment.
+```{r, message = FALSE}
+# Read data
+if (file.exists("data/hw2_second_result.csv")) {
+  df_2 <- read.csv("data/hw2_second_result.csv", header = FALSE, sep = " ")
+} else {
+  stop("FileNotFound: data not found at 'data/hw2_second_result.csv'.")
+}
+colnames(df_2) <- c("x1", "x2", "y")
+summary(df_2)
+```
+
+Next, we combine the results from the two experiments, apply the same normalization on the concentration levels, and transform to create attributes accordingly:
+```{r, message = FALSE}
+# Preprocess the features through normalization
+df_2$x1 <- df_2$x1 / 80
+df_2$x2 <- df_2$x2 / 30
+
+df <- rbind(df_1[, colnames(df_2)], df_2)
+summary(df)
+
+# Preprocess the features through polynomial expansion
+df$x1_sq <- df$x1^2
+df$x2_sq <- df$x2^2
+df$x1_x2 <- df$x1 * df$x2
+df$x1_cb <- df$x1^3
+df$x2_cb <- df$x2^3
+df$x1_x2_sq <- df$x1 * df$x2^2
+df$x1_sq_x2 <- df$x1^2 * df$x2
+```
+
+For the rigor of science, I run all the previous procedures with on the merged dataset to determine which model best describe the correlation. First, the following shows the results from a linear model. We can see that this time the model raises a significantly different result compared to the one from the first experiment. This observation indicates:
+- the linear model are sensitive to the data observation, since the merged dataset is skewed majorly by the second experiment;
+- the linear model may not be sufficient to capture the interaction between two molecules.
+```{r, fig.align = 'center'}
+x <- df[, cols[1:2]]
+x$intercept <- 1
+y <- df$y
+reg_data <- list(n = nrow(x), k = ncol(x), pr_std = 10.0, x = x, y = y)
+nfit <- sampling(
+  linreg_gaussian_model,
+  data = reg_data,
+  iter = 10000,
+  warmup = 5000,
+  chains = 1,
+  seed = 42,
+  show_messages = FALSE,
+)
+samples <- as.data.frame(nfit)
+colnames(samples)[seq_len(ncol(x))] <- colnames(x)
+mcmc_intervals(
+  samples[, seq_len(ncol(x))],
+  pars = colnames(x),
+  prob = 0.68,
+) + labs(
+  title = "Posterior Distributions of Coefficients in Linear Model",
+  subtitle = "with medians and 68% intervals"
+)
+```
+
+Then, I run the quadratic model and get the following result:
+- compared to the previous quadratic model, all posterior distributions have a higher uncertainty;
+- different from the previous one, this model assert that interaction of the two molecules might positively affect the conversion rate.
+```{r, fig.align='center'}
+x <- df[, cols[1:5]]
+x$intercept <- 1
+y <- df$y
+reg_data <- list(n = nrow(x), k = ncol(x), pr_std = 10.0, x = x, y = y)
+nfit <- sampling(
+  linreg_gaussian_model,
+  data = reg_data,
+  iter = 10000,
+  warmup = 5000,
+  chains = 1,
+  seed = 42,
+  show_messages = FALSE,
+)
+samples <- as.data.frame(nfit)
+colnames(samples)[seq_len(ncol(x))] <- colnames(x)
+mcmc_intervals(
+  samples[, seq_len(ncol(x))],
+  pars = colnames(x),
+  prob = 0.68,
+) + labs(
+  title = "Posterior Distributions of Coefficients in Quadratic Model",
+  subtitle = "with medians and 68% intervals"
+)
+```
+
+Next, I run the cubic model on the new dataset and get the following result:
+- compared to the quadratic model, some coefficients (*e.g.*, $x_{1}$, $x_{2}$, $x_{1}x_{2}$) have lower posterior uncertainties;
+- the new cubic model have similar coefficient posterior to the previous one fitted on solely the first experiment;
+- based on the posterior uncertainty, it is reasonable to only keep $x_{1}$, $x_{2}$, $x_{1}^2x_{2}$, and $x_{1}x_{2}^2$ terms.
+```{r, fig.align='center'}
+x <- df[, cols[1:9]]
+x$intercept <- 1
+y <- df$y
+reg_data <- list(n = nrow(x), k = ncol(x), pr_std = 10.0, x = x, y = y)
+nfit <- sampling(
+  linreg_gaussian_model,
+  data = reg_data,
+  iter = 10000,
+  warmup = 5000,
+  chains = 1,
+  seed = 42,
+  show_messages = FALSE,
+)
+samples <- as.data.frame(nfit)
+colnames(samples)[seq_len(ncol(x))] <- colnames(x)
+mcmc_intervals(
+  samples[, seq_len(ncol(x))],
+  pars = colnames(x),
+  prob = 0.68,
+) + labs(
+  title = "Posterior Distributions of Coefficients in Cubic Model",
+  subtitle = "with medians and 68% intervals"
+)
+```
+
+Finally, we fit the model using data collected from the two experiments,
+$$
+y = \beta_{0}+\beta_{1}x_{1} + \beta_{2}x_{2} + \beta_{3}x_{1}x_{2}^2 + \beta_{4}x_{1}^2x_{2} + \varepsilon,\quad \boldsymbol{\beta}\sim\mathcal{N}(0, 10^2\mathbf{I}),\quad \varepsilon\sim\text{Half-Cauchy}(0, 1)
+$$
+and get the following results. The optimal combination of two molecules given by the model is $x_{1}=65$, $x_{2}=16$.
+```{r, fig.align = 'center'}
+x <- df_1[, cols[c(1, 5, 8, 9)]]
+x$intercept <- 1
+y <- df_1$y
+reg_data <- list(n = nrow(x), k = ncol(x), pr_std = 10.0, x = x, y = y)
+nfit <- sampling(
+  linreg_gaussian_model,
+  data = reg_data,
+  iter = 10000,
+  warmup = 5000,
+  chains = 1,
+  seed = 42,
+  show_messages = FALSE,
+)
+samples <- as.data.frame(nfit)
+colnames(samples)[seq_len(ncol(x))] <- colnames(x)
+
+log_avg_intensity <- function(x1, x2, weights) {
+  intensity <- weights[, 1] * x1 +
+    weights[, 2] * x1 * x2 +
+    weights[, 3] * x1 * x2^2 +
+    weights[, 4] * x1^2 * x2 +
+    weights[, 5]
+  out <- mean(intensity)
+  return(out)
+}
+
+x1 <- seq(0, 80, 0.5)
+x2 <- seq(0, 30, 0.5)
+grid <- expand.grid(x1 = x1, x2 = x2)
+weight_samples <- samples[, 1:10]
+z <- mapply(
+  function(x1, x2) log_avg_intensity(x1 / 80, x2 / 30, weight_samples),
+  grid$x1,
+  grid$x2
+)
+z <- matrix(z, nrow = length(x1), ncol = length(x2))
+
+
+# Determine the best combination of concentrations
+index <- which(z == max(z), arr.ind = TRUE)
+x1_opt <- x1[index[1]]
+x2_opt <- x2[index[2]]
+
+col <- hcl.colors(20, "YlOrRd")
+filled.contour(
+  x1,
+  x2,
+  z,
+  col = col,
+  xlab = expression("x"[1]),
+  ylab = expression("x"[2]),
+  plot.title = title(
+    main = "Posterior Predictive Mean of Conversion",
+    sub = "fitted on two experiments"
+  ),
+  plot.axes = {
+    axis(1)
+    axis(2)
+    abline(v = x1_opt, lty = 2, col = "black")
+    abline(h = x2_opt, lty = 2, col = "black")
+    points(x1_opt, x2_opt, pch = 16, col = "red", cex = 1.5)
+    text(
+      x1_opt + 1,
+      x2_opt + 1,
+      labels = sprintf("(%g, %g)", round(x1_opt, 2), round(x2_opt, 2)),
+      pos = 4, # Position to the right of the point
+      col = "black",
+      cex = 0.8 # Adjust text size as needed
+    )
+  }
 )
 ```
