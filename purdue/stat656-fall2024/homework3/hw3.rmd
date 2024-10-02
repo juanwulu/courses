@@ -1,0 +1,33 @@
+---
+title: |
+    | **STAT 656: Bayesian Data Analysis**
+    | **Fall 2024**
+    | **Homework 3**
+author: "Juanwu Lu^[College of Engineering, Purdue University, West Lafayette, IN, USA]"
+description: "Homework 2 for STAT 656 at Purdue University"
+output: pdf_document
+fig_width: 6
+fig_height: 4
+---
+
+# Gibbs Sampling for Normal Hierarchical Models
+
+---
+
+# The Stroop Effect
+
+Consider a psychological task where subjects are presented with a word at the center of a computer screen (`'red'`, `'blue'`, or `'green'`). Further, the word is colored either red, blue or green. In some trials, the word matches the color of the text ('congruent' condition); otherwise they do not match ('incongruent' condition, *e.g., the word is `'red'` but it is colored blue*). Subjects are told to focus only on the color that the word is written in, and press $1$ if the color is red, $2$ if it is blue, and $3$ if it is green. In each case, the experimenter measures the reaction time (*i.e., how long it takes them to press the correct button*). The STrrop effect is a robust effect in psychology where the reaction tim ein the incongruent condition is on average **larger** than in the congruent condition.
+
+Your task is t use the data in `stroop_data.csv` to verify if this is the case. The data measures multiple reactions times of different subjects in congruent and incongruent settings. You will model this with a hierarchical Bayeisan model, with the goal of determining:
+
+* how much longer reaction times are for each color in incongruent vs congruent cases, and whether this difference is significant.
+* how different the effect is for each color, and whether these differences are significant.
+* how different individuals in the study are from each other.
+
+Your model should account for the fact that
+
+* each response of each individual involves random fluctuations
+* reaction times and the manitude of the Stroop effect can be different for different individuals
+* reaction times and the magnitude of the Strrop effect can be different for different colors (*e.g., it might be smaller for red where you have to press $1$ vs others*)
+
+Your hierarchical model should allow statistical sharing among individuals and possibly among different colors. Justifyyour model and prior choices, implement it in `Stan` and sicusss your findings, being sure to include visualizations and predictive checks of model fit. You must present your final results in a form that can be readily understood by a general audience.
