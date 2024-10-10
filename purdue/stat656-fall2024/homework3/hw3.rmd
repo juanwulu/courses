@@ -104,7 +104,7 @@ hierarchical_model_code <- "
         for (i in 1:k) {
             for (j in 1:c) {
                 mu_congruent[i, j] ~ normal(0, pr_std);
-                mu_incongruent[i, j] ~ normal(0, pr_std);
+                mu_incongruent[i, j] ~ normal(1, pr_std);
             }
         }
         std ~ gamma(1, 1);
@@ -126,7 +126,7 @@ hierarchical_model <- stan_model(
 )
 ```
 
-We sample $5,000$ samples from the hierarchical model using the data as follows.
+We sample $5,000$ samples from the hierarchical model using the data as follows. In the samples, we obtain two matrix representing the logarithm of mean of reaction time for each subject for each color in congruent and incongruent conditions, respectively. The two matrix is used for answering the three questions in the problem description.
 
 ```{r sampling, message = FALSE, results = "hide"}
 n <- dim(data)[1]
@@ -157,4 +157,52 @@ nfit <- sampling(
     seed = 42,
 )
 samples <- as.data.frame(nfit)
+```
+
+The following visualization shows the distribution of difference in the posterior mean of reaction time between incongruent and congruent conditions for each color averaged by subjects. The plot shows that the Stroop effect is significant for all colors. Among the three colors, the Stroop effect is most significant if the words are green, followed by red and blue. Difference in effect between red and blue is not significant.
+
+```{r plot-mcmc-color}
+mu_c <- exp(samples[, grep(pattern="^mu_congruent", x = colnames(samples))])
+mu_inc <- exp(samples[, grep(pattern="^mu_incongruent", x = colnames(samples))])
+diff <- data.matrix(mu_inc) - data.matrix(mu_c)
+
+color_diff <- array(0, dim = c(dim(samples)[1], c))
+colnames(color_diff) <- levels(factor(data$color))
+for (i in 1:c) {
+    color_diff[, i] <- apply(
+        diff[, (k * (i-1) + 1):(k * i)],
+        c(1),
+        mean
+    )
+}
+mcmc_areas(
+    x = color_diff,
+    par = levels(factor(data$color)),
+    prob = 0.68,
+) + labs(
+    title = "Average Difference in Posterior Mean of Reaction Time",
+    subtitle = "with median and 68% intervals for each color"
+)
+```
+
+The following visualization shows the distribution of difference in the posterior mean of reaction time between incongruent and congruent conditions for each subject averaged by colors. Based on the result, the mean difference varies significantly among subjects, where we observed the Stroop effect in most of their posterior distributions, with a few exceptions (*e.g., subject $15$, subject $27$, subject $41$, etc.*).
+
+```{r plot-mcmc-subj}
+subjs_diff <- array(0, dim = c(dim(samples)[1], k))
+colnames(subjs_diff) <- paste("", unique(data$subj))
+for (i in 1:k) {
+    subjs_diff[, i] <- apply(
+        diff[, seq(1, k * c, by = k) + (i - 1)],
+        c(1),
+        mean
+    )
+}
+mcmc_intervals(
+    x = subjs_diff,
+    par = colnames(subjs_diff),
+    prob = 0.68,
+) + labs(
+    title = "Average Difference in Posterior Mean of Reaction Time",
+    subtitle = "with median and 68% intervals for each subject"
+)
 ```
