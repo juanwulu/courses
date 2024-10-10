@@ -4,7 +4,7 @@ title: |
     | **Fall 2024**
     | **Homework 3**
 author: "Juanwu Lu^[College of Engineering, Purdue University, West Lafayette, IN, USA]"
-description: "Homework 2 for STAT 656 at Purdue University"
+description: "Homework 3 for STAT 656 at Purdue University"
 output:
     pdf_document: default
 fig_width: 6
@@ -66,45 +66,95 @@ According to the problem description, we have three colors and three words. With
 ```{r build-stan-model}
 hierarchical_model_code <- "
     data {
-        int<lower=0> n;                 // number of subjects
-        int<lower=0> t;                 // number of trials
-        real<lower=0> pr_std;           // Prior standard deviation of means
-        vector[n * t] color;            // Color of the word in each trial
-        vector[n * t] word;             // Word in each trial
-        array[n * t] int<lower=0> y;    // Reaction time
+        int<lower=0> n;                       // number of responses
+        int<lower=0> k;                       // number of subjects
+        int<lower=0> c;                       // number of colors
+        real<lower=0> pr_std;                 // Prior standard deviations
+        array[n] int<lower=1, upper=k> subjs; // Subject ID for each response
+        array[n] int<lower=1, upper=c> color; // Color of the word
+        array[n] int<lower=1, upper=c> word;  // Word in each trial
+        array[n] real y;                      // Reaction time of responses
     }
 
     parameters {
-        vector<lower=0>[n] std;    // Emission standard deviation
-        vector[n] mu_congruent;    // Mean reaction time for congruent condition
-        vector[n] mu_incongruent;  // Mean reaction time for incongruent condition
+        vector<lower=0>[k] std;       // Emission standard deviation
+        matrix[k, c] mu_congruent;    // Mean of reaction time for congruent
+        matrix[k, c] mu_incongruent;  // Mean of reaction time for incongruent
     }
 
     transformed parameters {
-        vector[n*t] congruent;   // Binary indicator for congruency
-        for (i in 1:n*t) {
+        // Calculate the binary indicator for congruence
+        vector[n] congruent;
+        for (i in 1:n) {
             congruent[i] = (color[i] == word[i]);
         }
-        vector[n*t] mu;
-        for (i in 1:n*t) {
-            mu[i] = mu_congruent[i] * congruent[i] + mu_incongruent[i] * (1 - congruent[i]);
+
+        // Calculate the emission mean as a Bernoulli mixture
+        vector[n] mu;
+        for (i in 1:n) {
+            mu[i] = (
+                mu_congruent[subjs[i], color[i]] * congruent[i]
+                + mu_incongruent[subjs[i], color[i]] * (1 - congruent[i])
+            );
         }
     }
 
     model {
-        mu_congruent ~ lognormal(0, pr_std);
-        mu_incongruent ~ lognormal(0, pr_std);
+        // Sample subject parameters from priors
+        for (i in 1:k) {
+            for (j in 1:c) {
+                mu_congruent[i, j] ~ normal(0, pr_std);
+                mu_incongruent[i, j] ~ normal(0, pr_std);
+            }
+        }
         std ~ gamma(1, 1);
-        y ~ lognormal(mu, std);
+        for (i in 1:n) {
+            y[i] ~ lognormal(mu[i], std[subjs[i]]);
+        }
     }
 
     generated quantities {
-        array[n*t] real y_hat;
-        y_hat = lognormal_rng(mu, std);
+        array[n] real y_hat;
+        for (i in 1:n) {
+            y_hat[i] = lognormal_rng(mu[i], std[subjs[i]]);
+        }
     }
 "
 hierarchical_model <- stan_model(
     model_name = "stroop_hierarchical",
     model_code = hierarchical_model_code
 )
+```
+
+We sample $5,000$ samples from the hierarchical model using the data as follows.
+
+```{r sampling, message = FALSE, results = "hide"}
+n <- dim(data)[1]
+k <- length(unique(data$subj))
+c <- length(unique(data$color))
+subjs <- data$subj
+color <- as.numeric(factor(data$color))
+word <- as.numeric(factor(data$word))
+y <- data$RT
+hm_data <- list(
+    n = n,
+    k = k,
+    c = c,
+    pr_std = 10.0,
+    subjs = subjs,
+    color = color,
+    word = word,
+    y = y
+)
+nfit <- sampling(
+    hierarchical_model,
+    data = hm_data,
+    chains = 1,
+    iter = 10000,
+    warmup = 5000,
+    show_message = FALSE,
+    cores = 16,
+    seed = 42,
+)
+samples <- as.data.frame(nfit)
 ```
