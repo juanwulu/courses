@@ -5,6 +5,10 @@ title: |
     | **Homework 3**
 author: "Juanwu Lu^[College of Engineering, Purdue University, West Lafayette, IN, USA]"
 description: "Homework 3 for STAT 656 at Purdue University"
+header-includes:
+    - \usepackage{amsmath}
+    - \usepackage{amssymb}
+mainfont: Times New Roman
 output:
     pdf_document: default
 fig_width: 6
@@ -21,7 +25,71 @@ bayesplot_theme_set(theme_default(base_size = 12, base_family = "sans"))
 
 # Gibbs Sampling for Normal Hierarchical Models
 
----
+In Lecture 7, we modeled the NBA data with a normal hierarchical model with known variances as follows:
+$$p(\mu,\tau^{2}) = p(\mu|\tau^{2})p(\tau^{2})\propto p(\tau^{2})$$
+$$\theta_{j}|\mu,\tau^{2}\sim\mathcal{N}(\mu,\tau^2), j=1,\ldots,J$$
+$$y_{ij}|\theta,\sigma^{2},\mu,\tau^{2}\sim\mathcal{N}(\theta_{j}, \sigma_{j}^{2}),\quad i=1,\ldots,n_{j}.$$
+Now we will extend this to allow the variances $\sigma^{2}_{j}$ to be unknown as well. We will consider two models:
+1. **Unknown but identical variances**: $\sigma_{1}^{2}=\ldots=\sigma_{J}^{2}=\sigma^{2}$, with $\sigma^{2}\sim p_{v}$
+2. **Unknown and independent variances**: $\sigma_{1}^{2},\ldots,\sigma_{J}^{2}\sim p_{v}$.
+
+For both models, set $p_{v}(\sigma^{2})\propto 1/\sigma$. Your task is to implement a Gibbs sampler to simulate all latent variables given the data from `nba_data.csv`. The Gibbs sampler involves the following steps for each iteration:
+
+- (*For both models*) Sample from $\mu,\tau^{2}|\theta_{1},\ldots,\theta_{J},\sigma_{1}^{2},\ldots,\sigma_{J}^{2},Y$, and then
+- (*For model 1*) Sample from $\theta_{1},\ldots,\theta_{J}|\sigma^{2},\mu,\tau^{2},Y$, and then $\sigma^{2}|\theta_{1},    \ldots,\theta_{J},\mu,\tau^{2},Y$
+- (*For model 2*) Sample from $(\theta_{1},\sigma_{1}^{2}),\ldots,(\theta_{J}, \sigma_{J}^{2})|\mu,\tau^{2},Y$.
+
+For full credit, for each model, you need to:
+
+1. (15 points) Write down the form of the conditional distributions above.
+2. (25 points) Write down R code to implement the Gibbs samplers.
+3. (30 points) Run the two Gibbs samplers on the NBA dataset and summarize the results. Specifically, for $\mu$, $\tau^2$ and a few $\theta_{j}$ and $\sigma_{j}$, plot the MCMC traceplots, and diagnose mixing. Also plot the corresponding posterior distributions.
+4. (30 points) Comment on how the posterior distributions differ from each other. Use each model to make predictions on the NBA games from the rest of the season (following code from Lecture 7), and comment on which model (or the model with known variances from Lecture 7) performs best.
+
+**Solution:**
+
+First, we load in the data. Instead of recording the score for each game $y_{ij},i=1,\ldots,n_{j}$, we can see from the data that it only gives the average score $\bar{y}_{j}=\frac{1}{n_{j}}\sum\limits_{i=1}^{n_{j}}y_{ij}$ for each team $j=1,\ldots,J$.
+
+```{r read-nba-data}
+if (file.exists("data/NBA_data.csv")) {
+  df <- read.csv("data/NBA_data.csv")[, -1]
+} else {
+  stop("FileNotFound: data file not found at 'data/NBA_data.csv'.")
+}
+head(df)
+```
+
+Following the lecture notes, we have $$\bar{y}_{j}|\theta{j}\sim\mathcal{N}(\theta_j,\frac{1}{n_{j}}\sigma_{j}^{2}),$$ and since $\theta_{j}\sim\mathcal{N}(\mu,\tau^{2})$, we have $$\bar{y}_{j}\sim\mathcal{N}(\mu,\tau^{2}+\frac{\sigma_{j}^{2}}{n_{j}}).$$ Therefore, the log joint posterior of $(\mu,\tau^{2})$ is given by
+
+$$
+\tag{*}
+\log p(\mu,\tau^{2}|\sigma_{1},\ldots,\sigma_{J},Y) = \log p(\mu,\tau^{2})-\frac{1}{2} \sum\limits_{j=1}^{J}\log\left(\tau^{2} + \frac{\sigma_{j}^{2}}{n_{j}}\right) - \frac{1}{2}\sum\limits_{j=1}^{J}\left\{\left(\tau^{2}+\frac{\sigma_{j}^{2}}{n_{j}}\right)^{-1}(\bar{y}_{j}-\mu)^{2}\right\} + \text{const}.
+$$
+
+If we denote $\sigma^{-2}_{\mu}=\sum\limits_{j=1}^{J}\left(\tau^{2}+\frac{\sigma_{j}^{2}}{n_{j}}\right)^{-1}$, then we can obtain the conditional posterior distribution of $\mu$ by separating out the terms involving $\mu$ in equation (*), which is given by
+$$
+\begin{aligned}
+& \log p(\mu|\tau^{2},\sigma_{1},\ldots,\sigma_{J},Y) = -\frac{1}{2}\left\{\frac{\mu^{2}}{\sigma^{2}_{\mu}} - 2  \sum\limits_{j=1}^{J}\left(\tau^{2}+\frac{\sigma_{j}^{2}}{n_{j}}\right)^{-1}\bar{y}_{j}\cdot\mu + \text{const}\right\} \\
+\Rightarrow\quad & \mu|\tau^{2},\sigma_{1},\ldots,\sigma_{J},Y\sim\mathcal{N}\left(\hat{\mu}, \sigma^{2}_{\mu}\right),\quad \hat{\mu}=\sum\limits_{j=1}^{J}\left(\tau^{2}+\frac{\sigma_{j}^{2}}{n_{j}}\right)^{-1}\bar{y}_{j}\cdot\sigma^{2}_{\mu}.
+\end{aligned}
+$$
+
+Hence, the log conditional posterior of $\tau^{2}$ is given by the following equation:
+$$
+\begin{aligned}
+  \log p(\tau^{2}|\mu,\sigma_{1},\ldots,\sigma_{J},Y) &= \log p(\mu,\tau^{2}|Y) - \log p(\mu|\tau^{2},\sigma_{1},\ldots,\sigma_{J},Y) \\
+  &= \log p(\mu,\tau^{2}) - \frac{1}{2}\sum\limits_{j=1}^{J}\log\left(\tau^{2} + \frac{\sigma_{j}^{2}}{n_{j}}\right) - \frac{1}{2}\sigma_{\mu} - \frac{1}{2}\sum\limits_{j=1}^{J}\left\{\left(\tau^{2}+\frac{\sigma_{j}^{2}}{n_{j}}\right)^{-1}(\bar{y}_{j}-\hat{\mu})^{2}\right\} \\
+\end{aligned}
+$$
+For fair comparison with the model from the lecture, we pose the same prior $p(\mu,\tau^{2})=\tau^{-1}$, the function for evaluating the log conditional posterior distribution of $\tau$ is implemented as follows:
+```{r log-posterior-tau-sq}
+log_posterior_tau_sq <- function(tau, mu, sigma) {
+  # TODO: implement this function.
+  stop("Not implemented")
+}
+```
+
+\pagebreak
 
 # The Stroop Effect
 
@@ -43,7 +111,7 @@ Your hierarchical model should allow statistical sharing among individuals and p
 
 **Solution**:
 
-```{r read-stroop-data}
+```{r read-stroop-data, eval = FALSE}
 # Read the data
 if (file.exists("data/stroop_dataset.csv")) {
     data <- read.csv("data/stroop_dataset.csv", header = TRUE, row.names = 1)
@@ -54,7 +122,7 @@ head(data)
 ```
 
 First we take a look at the distribution of reaction time over all subjects and trials. The following histogram shows that reaction time has a support of all positive real numbers, with a right-skewed long-tailed distribution. Therefore, we can model reaction time with a log-normal distribution.
-```{r plot-rt-distribution}
+```{r plot-rt-distribution, eval = FALSE}
 ggplot(data, aes(x = RT)) +
     geom_histogram(aes(y= after_stat(density)), bins = 100, fill = "lightblue") +
     labs(title = "Histogram of Reaction Time", x = "Reaction Time (ms)", y = "Frequency") +
@@ -63,7 +131,7 @@ ggplot(data, aes(x = RT)) +
 
 According to the problem description, we have three colors and three words. Without loss of generality, we can represent them as discrete random variables. Then we obtain a binary indicator to represent the congruence of the word and the color. In this formulation, we introduce means for congruent and incongruent conditions, where both of them follow a log-normal distribution. In the distribution of the reaction time, we activate either one of them based on the binary congruence indicator. Finally, we pose standard Gamma priors on the standard deviations in the log-normal distribution of reaction time.
 
-```{r build-stan-model}
+```{r build-stan-model, eval = FALSE}
 hierarchical_model_code <- "
     data {
         int<lower=0> n;                       // number of responses
@@ -128,7 +196,7 @@ hierarchical_model <- stan_model(
 
 We sample $5,000$ samples from the hierarchical model using the data as follows. In the samples, we obtain two matrix representing the logarithm of mean of reaction time for each subject for each color in congruent and incongruent conditions, respectively. The two matrix is used for answering the three questions in the problem description.
 
-```{r sampling, message = FALSE, results = "hide"}
+```{r sampling, message = FALSE, results = "hide", eval = FALSE}
 n <- dim(data)[1]
 k <- length(unique(data$subj))
 c <- length(unique(data$color))
@@ -161,7 +229,7 @@ samples <- as.data.frame(nfit)
 
 The following visualization shows the distribution of difference in the posterior mean of reaction time between incongruent and congruent conditions for each color averaged by subjects. The plot shows that the Stroop effect is significant for all colors. Among the three colors, the Stroop effect is most significant if the words are green, followed by red and blue. Difference in effect between red and blue is not significant.
 
-```{r plot-mcmc-color}
+```{r plot-mcmc-color, eval = FALSE}
 mu_c <- exp(samples[, grep(pattern="^mu_congruent", x = colnames(samples))])
 mu_inc <- exp(samples[, grep(pattern="^mu_incongruent", x = colnames(samples))])
 diff <- data.matrix(mu_inc) - data.matrix(mu_c)
@@ -187,7 +255,7 @@ mcmc_areas(
 
 The following visualization shows the distribution of difference in the posterior mean of reaction time between incongruent and congruent conditions for each subject averaged by colors. Based on the result, the mean difference varies significantly among subjects, where we observed the Stroop effect in most of their posterior distributions, with a few exceptions (*e.g., subject $15$, subject $27$, subject $41$, etc.*).
 
-```{r plot-mcmc-subj}
+```{r plot-mcmc-subj, eval = FALSE}
 subjs_diff <- array(0, dim = c(dim(samples)[1], k))
 colnames(subjs_diff) <- paste("", unique(data$subj))
 for (i in 1:k) {
