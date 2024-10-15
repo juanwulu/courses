@@ -140,6 +140,14 @@ $$
 \end{aligned}
 $$
 
+For model 2, as shown by Figure 1(c), the variances $\sigma_{j}$ for each team are now independent and identically distributed with $\sigma_{1}^{2},\ldots,\sigma_{J}^{2}\overset{\text{i.i.d}}{\sim}p_{v}$. To leverage the conjugate structure, the conditional distribution of $\theta_{j}$ is then given by $\theta_{j}\sim\mathcal{N}(\mu,\tau^{2}\sigma^{2}_{j})$. As a result, the log joint conditional posterior distribution of $\left(\theta_{j},\sigma^{2}_{j}\right)$ is given by
+$$
+\begin{aligned}
+  \log p(\theta,\sigma^{2}\mid\mu,\tau^{2},Y) &= \sum\limits_{j=1}^{J}\log\left(p_{v}(\sigma_{j})\cdot p(\theta_{j}\mid\mu,\tau^{2}\sigma_{j}^{2})\cdot p(\bar{y}_{j}\mid\theta_{j},\sigma_{j}^{2})\right) \\
+  &= -\sum\limits_{j=1}^{J}\left(\log(\sigma_{j}) + \frac{1}{2}\log(\tau^{2}\sigma^{2}) + \frac{1}{2}\frac{(\theta_{j}-\mu)^{2}}{\tau^{2}\sigma^{2}_{j}} + \frac{1}{2}\log(\sigma_{j}^{2}) + \frac{1}{2}\frac{(\bar{y}_{j}-\theta_{j})^{2}}{\sigma_{j}^{2}} + \text{const}\right).
+\end{aligned}
+$$
+
 \pagebreak
 
 # The Stroop Effect
