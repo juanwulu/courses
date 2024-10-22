@@ -132,6 +132,22 @@ $$
   \theta_{j}\sim\mathcal{N}\left(\frac{\tau^{-2}\mu+\left(\frac{n_{j}}{\sigma^{2}_{j}}\right)\bar{y}_{j}}{\tau^{-2}+\left(\frac{n_{j}}{\sigma^{2}_{j}}\right)},\left(\tau^{-2} + \left(\frac{n_{j}}{\sigma^{2}_{j}}\right)\right)^{-1}\right)
 $$
 
+The log conditional posterior distribution of $\theta{j}$ is implemented as follows:
+
+```{r log-posterior-theta}
+log_posterior_theta <- function(theta, mu, tau_sq, sigma_sq, n, y_bar) {
+  precision_theta <- 1 / (1 / tau_sq + n / sigma_sq)
+  mu_hat_theta <- (mu / tau_sq + n * y_bar / sigma_sq) / precision_theta
+  log_prob <- -0.5 * (
+    log(2 * pi)
+    - log(precision_theta)
+    + precision_theta
+    * (theta - mu_hat_theta) ^ 2
+  )
+  return(log_prob)
+}
+```
+
 Meanwhile, the log conditional posterior distribution of $\sigma^{2}$ is given by
 $$
 \begin{aligned}
@@ -139,6 +155,19 @@ $$
   &= -\log(\sigma) - \frac{1}{2}\sum\limits_{j=1}^{J}\left\{\log\left(\frac{\sigma_{j}^{2}}{n_{j}}\right)+\frac{(\bar{y}_{j}-\theta_{j})^{2}}{\sigma_{j}^{2}/n_{j}}\right\} + \text{const}.
 \end{aligned}
 $$
+
+The log conditional posterior distribution of $\sigma$ is implemented as follows:
+
+```{r log-posterior-sigma}
+log_posterior_sigma <- function(theta, sigma_sq, n, y_bar) {
+  log_prob <- -0.5 * (
+    log(sigma_sq) + sum(
+      log(sigma_sq / n) + (y_bar - theta) ^ 2 / (sigma_sq / n)
+    )
+  )
+  return(log_prob)
+}
+```
 
 For model 2, as shown by Figure 1(c), the variances $\sigma_{j}$ for each team are now independent and identically distributed with $\sigma_{1}^{2},\ldots,\sigma_{J}^{2}\overset{\text{i.i.d}}{\sim}p_{v}$. To leverage the conjugate structure, the conditional distribution of $\theta_{j}$ is then given by $\theta_{j}\sim\mathcal{N}(\mu,\tau^{2}\sigma^{2}_{j})$. As a result, the log joint conditional posterior distribution of $\left(\theta_{j},\sigma^{2}_{j}\right)$ is given by
 $$
@@ -184,7 +213,11 @@ First we take a look at the distribution of reaction time over all subjects and 
 ```{r plot-rt-distribution, eval = FALSE}
 ggplot(data, aes(x = RT)) +
   geom_histogram(aes(y = after_stat(density)), bins = 100, fill = "lightblue") +
-  labs(title = "Histogram of Reaction Time", x = "Reaction Time (ms)", y = "Frequency") +
+  labs(
+    title = "Histogram of Reaction Time",
+    x = "Reaction Time (ms)",
+    y = "Frequency"
+  ) +
   geom_density()
 ```
 
@@ -289,17 +322,25 @@ samples <- as.data.frame(nfit)
 The following visualization shows the distribution of difference in the posterior mean of reaction time between incongruent and congruent conditions for each color averaged by subjects. The plot shows that the Stroop effect is significant for all colors. Among the three colors, the Stroop effect is most significant if the words are green, followed by red and blue. Difference in effect between red and blue is not significant.
 
 ```{r plot-mcmc-color, eval = FALSE}
-mu_c <- exp(samples[, grep(pattern="^mu_congruent", x = colnames(samples))])
-mu_inc <- exp(samples[, grep(pattern="^mu_incongruent", x = colnames(samples))])
+mu_c <- exp(
+  samples[
+    , grep(pattern = "^mu_congruent", x = colnames(samples))
+  ]
+)
+mu_inc <- exp(
+  samples[
+    , grep(pattern = "^mu_incongruent", x = colnames(samples))
+  ]
+)
 diff <- data.matrix(mu_inc) - data.matrix(mu_c)
 
 color_diff <- array(0, dim = c(dim(samples)[1], c))
 colnames(color_diff) <- levels(factor(data$color))
 for (i in 1:c) {
   color_diff[, i] <- apply(
-      diff[, (k * (i-1) + 1):(k * i)],
-      c(1),
-      mean
+    diff[, (k * (i - 1) + 1):(k * i)],
+    c(1),
+    mean
   )
 }
 mcmc_areas(
