@@ -49,14 +49,14 @@ This is thus the probit model fro the Lecture slides. Write $X$, $Y$, and $Z$ fo
 $$
 \tag{1}
 \begin{aligned}
-  \log{p}(Z|X,Y,\beta) &= \log{p}(\beta) + \sum\limits_{i=1}^{d}\log{p}(y_{i}\mid z_{i}) + \log{p}(z_{i}\mid x_{i}) + C_{1} \\
-  &= -\frac{1}{2}\beta^{T}\Sigma_{b}^{-1}\beta + \sum\limits_{i=1}^{d}y_{i}\log\mathbbm{1}(z_{i}>0) + (1-y_{i})\log\mathbbm{1}(z_{i}\leq 0) - \frac{1}{2}\left(z_{i}-x_{i}\beta\right)^{2} + C_{2}
+  \log{p}(Z|X,Y,\beta) &= \log{p}(\beta) + \sum\limits_{i=1}^{N}\log{p}(y_{i}\mid z_{i}) + \log{p}(z_{i}\mid x_{i}) + C_{1} \\
+  &= -\frac{1}{2}\beta^{T}\Sigma_{b}^{-1}\beta + \sum\limits_{i=1}^{N}y_{i}\log\mathbbm{1}(z_{i}>0) + (1-y_{i})\log\mathbbm{1}(z_{i}\leq 0) - \frac{1}{2}\left(z_{i}-x_{i}\beta\right)^{2} + C_{2}
 \end{aligned}
 $$
 Therefore, the conditional distribution is given by:
 $$
 \tag{2}
-p(Z|X,Y,\beta)\propto\begin{cases}
+p(z_{i}|x_{i},y_{i},\beta)\propto\begin{cases}
   \mathbbm{1}(z_{i}>0)\mathcal{N}(x_{i}\beta,1) & \text{if } y_{i}=1, \\
   \mathbbm{1}(z_{i}\leq 0)\mathcal{N}(x_{i}\beta,1) & \text{otherwise.}
 \end{cases}
@@ -66,15 +66,15 @@ $$
 $$
 \begin{aligned}
 \log{p}(\beta\mid X,Y,Z) &= -\frac{1}{2}\sum\limits_{i=1}^{d}z_{i}^{2}-2z_{i}(x_{i}\beta) + x_{i}\beta\beta^{\intercal}x_{i}^{\intercal} + \beta^{\intercal}\Sigma_{b}^{-1}\beta + C_{3} \\
-&= -\frac{1}{2}\beta^{\intercal}\left(\sum\limits_{i=1}^{d}x_{i}^{\intercal}x_{i}+\Sigma_{b}^{-1}\right)\beta - 2\sum\limits_{i=1}^{d}z_{i}x_{i}\beta + C_{4} \\
-&= -\frac{1}{2}\left(\beta-\Sigma_{\beta\mid X,Y,Z}\sum\limits_{i=1}^{d}z_{i}x_{i}^{\intercal}\right)^{\intercal}\Sigma_{\beta\mid X,Y,Z}^{-1}\left(\beta-\Sigma_{\beta\mid X,Y,Z}\sum\limits_{i=1}^{d}z_{i}x_{i}^{\intercal}\right) + C_{5}, \\
-\text{where}\quad & \Sigma_{\beta\mid X,Y,Z} = \left(\sum\limits_{i=1}^{d}x_{i}^{\intercal}x_{i}+\Sigma_{b}^{-1}\right)^{-1}
+&= -\frac{1}{2}\beta^{\intercal}\left(\sum\limits_{i=1}^{N}x_{i}^{\intercal}x_{i}+\Sigma_{b}^{-1}\right)\beta - 2\sum\limits_{i=1}^{N}z_{i}x_{i}\beta + C_{4} \\
+&= -\frac{1}{2}\left(\beta-\Sigma_{\beta\mid X,Y,Z}\sum\limits_{i=1}^{N}z_{i}x_{i}^{\intercal}\right)^{\intercal}\Sigma_{\beta\mid X,Y,Z}^{-1}\left(\beta-\Sigma_{\beta\mid X,Y,Z}\sum\limits_{i=1}^{N}z_{i}x_{i}^{\intercal}\right) + C_{5}, \\
+\text{where}\quad & \Sigma_{\beta\mid X,Y,Z} = \left(\sum\limits_{i=1}^{N}x_{i}^{\intercal}x_{i}+\Sigma_{b}^{-1}\right)^{-1}
 \end{aligned}
 $$
 Therefore, the conditional distribution is a multivariate normal distribution
 $$
 \tag{2}
-p(\beta\mid X,Y,Z)\sim\mathcal{N}\left(\left(\sum\limits_{i=1}^{d}x_{i}^{\intercal}x_{i}+\Sigma_{b}^{-1}\right)^{-1}\sum\limits_{i=1}^{d}z_{i}x_{i}^{\intercal}, \left(\sum\limits_{i=1}^{d}x_{i}^{\intercal}x_{i}+\Sigma_{b}^{-1}\right)^{-1}\right)
+p(\beta\mid X,Y,Z)\sim\mathcal{N}\left(\left(\sum\limits_{i=1}^{N}x_{i}^{\intercal}x_{i}+\Sigma_{b}^{-1}\right)^{-1}\sum\limits_{i=1}^{N}z_{i}x_{i}^{\intercal}, \left(\sum\limits_{i=1}^{N}x_{i}^{\intercal}x_{i}+\Sigma_{b}^{-1}\right)^{-1}\right)
 $$
 
 3. The Gibbs sampling algorithm is as follows:
@@ -84,4 +84,11 @@ $$
   - Sample $\beta\mid X,Y,Z$ from the conditional distribution $p(\beta\mid X,Y,Z)$.
 Therefore, with every sampled collection of $Z$, we can calculate the posterior mean and covariance of $\beta$ according to the results equation ($2$):
 - Calculate the covariance by $\left(\sum\limits_{i=1}^{d}x_{i}^{\intercal}x_{i}+\Sigma_{b}^{-1}\right)^{-1}$.
-- Calculate the mean by $\left(\sum\limits_{i=1}^{d}x_{i}^{\intercal}x_{i}+\Sigma_{b}^{-1}\right)^{-1}\sum\limits_{i=1}^{d}z_{i}x_{i}^{\intercal}$.
+- Calculate the mean by $\left(\sum\limits_{i=1}^{d}x_{i}^{\intercal}x_{i}+\Sigma_{b}^{-1}\right)^{-1}\sum\limits_{i=1}^{d}z_{i}x_{i}^{\intercal}$, where $z_{i}$ are samples from the first step of Gibbs sampling iterations.
+
+4. The mean-field variational family of the original model is given by $q(\beta,z)=q(\beta)\prod\limits_{i=1}^{$
+
+\pagebreak
+
+# Effect of Computer-generated Reminders
+
