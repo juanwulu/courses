@@ -86,7 +86,31 @@ Therefore, with every sampled collection of $Z$, we can calculate the posterior 
 - Calculate the covariance by $\left(\sum\limits_{i=1}^{d}x_{i}^{\intercal}x_{i}+\Sigma_{b}^{-1}\right)^{-1}$.
 - Calculate the mean by $\left(\sum\limits_{i=1}^{d}x_{i}^{\intercal}x_{i}+\Sigma_{b}^{-1}\right)^{-1}\sum\limits_{i=1}^{d}z_{i}x_{i}^{\intercal}$, where $z_{i}$ are samples from the first step of Gibbs sampling iterations.
 
-4. The mean-field variational family of the original model is given by $q(\beta,z)=q(\beta)\prod\limits_{i=1}^{$
+4. The mean-field variational family of the original model is given by $q(\beta,z)=q(\beta)\prod\limits_{i=1}^{N}q(z_{i})$, where the optimal formula for the two variational distributions are given by:
+$$
+\begin{aligned}
+  \log{q}^{*}(Z) &= \mathbb{E}_{q(\beta)}\left[\log{p}(Y,Z,\beta|x)\right] \\
+  &= \mathbb{E}_{q(\beta)}\left[-\frac{1}{2}\beta^{T}\Sigma_{b}^{-1}\beta + \sum\limits_{i=1}^{N}y_{i}\log\mathbbm{1}(z_{i}>0) + (1-y_{i})\log\mathbbm{1}(z_{i}\leq 0) - \frac{1}{2}\left(z_{i}-x_{i}\beta\right)^{2} + C_{2}\right] \\
+  &= \sum\limits_{i=1}^{N}y_{i}\log\mathbbm{1}(z_{i}>0) + (1-y_{i})\log\mathbbm{1}(z_{i}\leq 0) - \frac{1}{2}\left(z^{2}_{i}-2x_{i}\mu_{\beta}z_{i}\right) + C_{6}, \\
+  \text{where,}\quad \mu_{\beta} &= \mathbb{E}_{q(\beta)}[\beta].
+\end{aligned}
+$$
+Therefore, the variational distribution of $Z$ is given by
+$$
+  q(Z) = \prod\limits_{i=1}^{N}\mathbbm{1}(z_{i}>0)^{y_{i}}\mathbbm{1}(z_{i}\leq 0)^{1-y_{i}}\mathcal{N}(x_{i}\mu_{\beta},1).
+$$
+Similarly, the optimal formula for the distribution of $\beta$ is given by:
+$$
+\begin{aligned}
+  \log{q}^{*}(\beta) &= \mathbb{E}_{q(Z)}[\log{p}(Y,Z,\beta|x)] \\
+  &= \mathbb{E}_{q(Z)}\left[-\frac{1}{2}\beta^{T}\Sigma_{b}^{-1}\beta + \sum\limits_{i=1}^{N}y_{i}\log\mathbbm{1}(z_{i}>0) + (1-y_{i})\log\mathbbm{1}(z_{i}\leq 0) - \frac{1}{2}\left(z_{i}-x_{i}\beta\right)^{2} + C_{2}\right] \\ 
+  &= -\frac{1}{2}\beta^{\intercal}\Sigma_{b}^{-1}\beta -\frac{1}{2}\sum\limits_{i=1}^{N}\left(\beta^{\intercal}x_{i}^{\intercal}x_{i}\beta - 2\mu_{z_{i}}x_{i}\beta \right) + C_{7}
+\end{aligned}
+$$
+Therefore, the variational distribution of $\beta$ is given by
+$$
+q(\beta) = \mathcal{N}\left(\Sigma_{q}\left(\sum\limits_{i=1}^{N}\mu_{z_{i}}x_{i}^{\intercal}\right), \Sigma_{q}\right),\quad\text{where }\Sigma_{q} = \left(\sum\limits_{n=1}^{N}x_{i}^{\intercal}x_{i} + \Sigma_b\right)^{-1}
+$$
 
 \pagebreak
 
