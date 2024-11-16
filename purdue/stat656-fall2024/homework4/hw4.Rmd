@@ -34,9 +34,9 @@ bayesplot_theme_set(theme_default(base_size = 12, base_family = "sans"))
 
 Consider $N$ pairs of observations $(x_{i},y_{i})$, where $x_{i}\in\mathbf{R}^{d}$ and $y_{i}\in\left\{0, 1\right\}$. These are generated as follows:
 $$
-z_{i}\sim\mathcal{N}(x_{i}\beta,1)\quad y_{i}=\mathbbm{1}(z_{i}> 0),\quad i=1,\ldots,N 
+z_{i}\sim\mathcal{N}(x_{i}\beta,1)\quad y_{i}=\mathbbm{1}(z_{i}> 0),\quad i=1,\ldots,N
 $$
-This is thus the probit model fro the Lecture slides. Write $X$, $Y$, and $Z$ for the collection of $x_{i}$, $y_{i}$, and $z_{i}$'s. We will place a $\mathcal{N}(0,\Sigma_{b})$ prior on $\beta\in\mathbb{R}^{d}$, and draw samples from the posterior $p(\beta,Z\mid X,Y)$. Observe that as in regression settings, we are really only interested in $\beta$, the $Z$'s only auxiliary variables to allow us to implement a Gibbs sampler. In other words, this is an example of a *data-augmentation algorithm*.
+This is thus the probit model for the Lecture slides. Write $X$, $Y$, and $Z$ for the collection of $x_{i}$, $y_{i}$, and $z_{i}$'s. We will place a $\mathcal{N}(0,\Sigma_{b})$ prior on $\beta\in\mathbb{R}^{d}$, and draw samples from the posterior $p(\beta,Z\mid X,Y)$. Observe that as in regression settings, we are really only interested in $\beta$, the $Z$'s only auxiliary variables to allow us to implement a Gibbs sampler. In other words, this is an example of a *data-augmentation algorithm*.
 
 1. (7 points) Derive and write down the conditional distribution $p(Z\mid X,Y,\beta)$.
 2. (7 points) Derive and write down the conditional distribution $p(\beta\mid X,Y,Z)$?
@@ -103,7 +103,7 @@ Similarly, the optimal formula for the distribution of $\beta$ is given by:
 $$
 \begin{aligned}
   \log{q}^{*}(\beta) &= \mathbb{E}_{q(Z)}[\log{p}(Y,Z,\beta|x)] \\
-  &= \mathbb{E}_{q(Z)}\left[-\frac{1}{2}\beta^{T}\Sigma_{b}^{-1}\beta + \sum\limits_{i=1}^{N}y_{i}\log\mathbbm{1}(z_{i}>0) + (1-y_{i})\log\mathbbm{1}(z_{i}\leq 0) - \frac{1}{2}\left(z_{i}-x_{i}\beta\right)^{2} + C_{2}\right] \\ 
+  &= \mathbb{E}_{q(Z)}\left[-\frac{1}{2}\beta^{T}\Sigma_{b}^{-1}\beta + \sum\limits_{i=1}^{N}y_{i}\log\mathbbm{1}(z_{i}>0) + (1-y_{i})\log\mathbbm{1}(z_{i}\leq 0) - \frac{1}{2}\left(z_{i}-x_{i}\beta\right)^{2} + C_{2}\right] \\
   &= -\frac{1}{2}\beta^{\intercal}\Sigma_{b}^{-1}\beta -\frac{1}{2}\sum\limits_{i=1}^{N}\left(\beta^{\intercal}x_{i}^{\intercal}x_{i}\beta - 2\mu_{z_{i}}x_{i}\beta \right) + C_{7}
 \end{aligned}
 $$
@@ -116,3 +116,20 @@ $$
 
 # Effect of Computer-generated Reminders
 
+An experiment was conducted to study the effects of computer-generated reminders on preventive care. Physicians (specifically, residents and faculty members on the staff of a general medicine clinic) were randomly assigned to either a treatment or control group. The treatment in this experiment is a reminder sent to physicians that encouraged them to inoculate their patients at risk for the flu. The question of interest here is **whether the computer-generated reminder increases the likelihood that a patient will be vaccinated**.
+
+Your task is to use a **probit regression model** to learn about the effect of the treatment on patient vaccination, accounting for patient characteristics that may be associated with the response. The observed data is contained in `flu_data.txt`, and consists of the following variables for each of the $2,901$ patients. You can drop _patients with missing covariates_ from your analysis
+
+- `treatment`: An indicator that equals $1$ if the patient's doctor received treatment, and $0$ otherwise.
+- `vaccinated`: An indicator that equals $1$ if the patient received the vaccine, and $0$ otherwise.
+- `age`: The patient's age.
+- `copd`: Equals $1$ if the patient has chronic obstructive pulmonary disease, and $0$ otherwise.
+- `heartd`: An indicator that equals $1$ if the patient has heart disease, and $0$ otherwise.
+- `renal`: An indicator that equals $1$ if the patient has kidney disease, and $0$ otherwise.
+- `liverd`: An indicator that equals $1$ if the patient has liver disease, and $0$ otherwise.
+
+1. (25 points) Apply your function from the previous question on the data provided in `flu.data.txt`. Describe how you initialized the algorithm, the number of iterations that you ran it for, and your selected convergence criterion. Plot the approximation to the posterior distribution over $\beta$ as well as a few of the $z_{i}$'s. Based on your posterior approximation, what do you conclude about the effect of the treatment on patient vaccination?
+2. (20 points) Implement the probit model in Stan, and produce an MCMC approximation to the posterior. Treating these as the truth (recall MCMC becomes arbitrarily accurate with increasing number of samples), comment on your variational approximation deviates from the true posterior distribution.
+3. (20 points) Implement the _logistic regression_ model in Stan, and produce an MCMC approximation to the posterior. Comment on any difference between this as the results from the probit model.
+
+**Solution:**
