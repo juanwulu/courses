@@ -21,12 +21,9 @@ editor_options:
 
 ```{r setup, include=FALSE}
 library(bayesplot)
-library(dplyr)
+library(gridExtra)
 library(ggplot2)
-library(moments)
-library(patchwork)
 library(rstan)
-library(tidyr)
 bayesplot_theme_set(theme_default(base_size = 12, base_family = "sans"))
 ```
 
@@ -97,6 +94,7 @@ $$
 $$
 Therefore, the variational distribution of $Z$ is given by
 $$
+\tag{3}
   q(Z) = \prod\limits_{i=1}^{N}\mathbbm{1}(z_{i}>0)^{y_{i}}\mathbbm{1}(z_{i}\leq 0)^{1-y_{i}}\mathcal{N}(x_{i}\mu_{\beta},1).
 $$
 Similarly, the optimal formula for the distribution of $\beta$ is given by:
@@ -109,8 +107,73 @@ $$
 $$
 Therefore, the variational distribution of $\beta$ is given by
 $$
+\tag{4}
 q(\beta) = \mathcal{N}\left(\Sigma_{q}\left(\sum\limits_{i=1}^{N}\mu_{z_{i}}x_{i}^{\intercal}\right), \Sigma_{q}\right),\quad\text{where }\Sigma_{q} = \left(\sum\limits_{n=1}^{N}x_{i}^{\intercal}x_{i} + \Sigma_b\right)^{-1}
 $$
+To implement the variational inference algorithm, we can leverage the fact that the density in Equation (3) is a truncated normal distribution, given by
+$$
+q(z_{i}) = \begin{cases}
+  \mathcal{N}_{[0,\infty]}(x_{i}\mu_{\beta},1) & \text{if } y_{i}=1, \\
+  \mathcal{N}_{[-\infty,0]}(x_{i}\mu_{\beta},1) & \text{otherwise.}
+\end{cases}
+$$
+Therefore, the mean and variance of the truncated normal distributions can be calculated by
+$$
+\begin{aligned}
+y_{i} = 1: \\
+&\quad \mu_{z_{i}} = x_{i}\mu_{\beta} + \frac{\phi(-x_{i}\mu_{\beta})-0}{1-\Phi(-x_{i}\mu_{\beta})}\sigma = x_{i}\mu_{\beta} + \frac{\phi(-x_{i}\mu_{\beta})}{1-\Phi(-x_{i}\mu_{\beta})}, \\
+&\quad \text{Var}(z_{i}) = 1 + x_{i}\mu_{\beta}\frac{\phi(-x_{i}\mu_{\beta})}{1 - \Phi(-x_{i}\mu_{\beta})} - \left(\frac{\phi(-x_{i}\mu_{\beta})}{1 - \Phi(-x_{i}\mu_{\beta})}\right)^{2} \\
+y_{i} = 0: \\
+&\quad \mu_{z_{i}} = x_{i}\mu_{\beta} + \frac{0-\phi(-x_{i}\mu_{\beta})}{\Phi(-x_{i}\mu_{\beta})}\sigma = x_{i}\mu_{\beta} - \frac{\phi(-x_{i}\mu_{\beta})}{\Phi(-x_{i}\mu_{\beta})}, \\
+&\quad \text{Var}(z_{i}) = 1 - x_{i}\mu_{\beta}\frac{\phi(-x_{i}\mu_{\beta})}{\Phi(-x_{i}\mu_{\beta})} - \left(\frac{\phi(-x_{i}\mu_{\beta})}{\Phi(-x_{i}\mu_{\beta})}\right)^{2}
+\end{aligned}
+$$
+Therefore, the variational inference algorithm can be implemented as follows:
+```{r vb_fn}
+vb_probit <- function(x, y, mu_beta, cov_beta, max_iter = 100, atol = 1e-6) {
+  # initialization
+  mu_z <- rep(0.0, nrow(x))
+  var_z <- rep(1.0, nrow(x))
+  iter <- 0
+  while (TRUE) {
+    # Update variational distribution of Z
+    phi_pdf <- pmax(dnorm(-x %*% mu_beta), 1e-6)
+    phi_cdf <- pmax(pnorm(-x %*% mu_beta), 1e-6)
+    new_mu_z <- ifelse(
+      y == 1,
+      x %*% mu_beta + phi_pdf / (1 - phi_cdf),
+      x %*% mu_beta - phi_pdf / phi_cdf
+    )
+    new_var_z <- ifelse(
+      y == 1,
+      1 + x %*% mu_beta * phi_pdf / (1 - phi_cdf) - (phi_pdf / (1 - phi_cdf))^2,
+      1 - x %*% mu_beta * phi_pdf / phi_cdf - (phi_pdf / phi_cdf)^2
+    )
+
+    # sample from the posterior distribution of beta
+    new_cov_beta <- solve(t(x) %*% x + cov_beta)
+    new_mu_beta <- new_cov_beta %*% rowSums(t(x) %*% new_mu_z)
+
+    if (
+      iter > max_iter ||
+      all(abs(new_mu_beta - mu_beta) < atol) ||
+      all(abs(new_cov_beta - cov_beta) < atol) ||
+      all(abs(new_mu_z - mu_z) < atol) ||
+      all(abs(new_var_z - var_z) < atol)
+    ) {
+      return(
+        list(mu_beta = mu_beta, cov_beta = cov_beta, mu_z = mu_z, var_z = var_z)
+      )
+    }
+
+    mu_beta <- new_mu_beta
+    cov_beta <- new_cov_beta
+    mu_z <- new_mu_z
+    var_z <- new_var_z
+    iter <- iter + 1
+  }
+}
+```
 
 \pagebreak
 
@@ -133,3 +196,172 @@ Your task is to use a **probit regression model** to learn about the effect of t
 3. (20 points) Implement the _logistic regression_ model in Stan, and produce an MCMC approximation to the posterior. Comment on any difference between this as the results from the probit model.
 
 **Solution:**
+
+We first load the data, where the target variables $y_{i}$ are the `vaccinated` column, and the covariates $x_{i}$ are the remaining columns. Then, rows with missing covariates are removed from the loaded dataset. In this case, particularly, we remove any row with its age values ".".
+
+```{r load_data}
+if (file.exists("data/flu_data.txt")) {
+  df <- read.table("data/flu_data.txt", header = TRUE, sep = " ")
+  sprintf("Successfully loaded %d rows of data", nrow(df))
+} else {
+  stop("FileNotFound: data file not found at 'data/flu_data.txt'.")
+}
+df <- df[!df$age == ".", ]
+df$age <- as.integer(as.character(df$age))
+sprintf("Keep %d rows of data after removing missing covariates", nrow(df))
+```
+
+For applying the variational inference algorithm, the mean and covariance of $\beta$ are initialized with random values and identity matrix. The algorithm is implemented as follows:
+```{r vb_probit}
+# initialization
+x <- as.matrix(df[, -c(2)])
+y <- df$vaccinated
+mu_beta <- rnorm(ncol(x), 0, 0.01)
+cov_beta <- diag(nrow = ncol(x), ncol = ncol(x))
+result <- vb_probit(x = x, y = y, mu_beta = mu_beta, cov_beta = cov_beta)
+```
+
+Next, we implement the probit model in Stan following the official instruction^[https://mc-stan.org/docs/2_21/stan-users-guide/logistic-probit-regression-section.html]. The code is as shown below:
+```{r stan_probit, message = FALSE, results = "hide"}
+probit_code <- "
+  data {
+    int<lower=0> n;                   // number of observations
+    int<lower=0> k;                   // number of predictors/features
+    real<lower=0> pr_std;             // prior standard deviation for beta
+    matrix[n, k] x;                   // predictor matrix
+    array[n] int<lower=0,upper=1> y;  // binary outcome variable
+  }
+
+  parameters {
+    vector[k] beta;             // regression coefficients
+  }
+
+  transformed parameters {
+    vector[n] mu;               // linear predictor
+    mu = x * beta;
+  }
+
+  model {
+    beta ~ normal(0, pr_std);
+    y ~ bernoulli(Phi(mu));
+  }
+"
+probit_model <- stan_model(
+  model_name = "probit_regression",
+  model_code = probit_code
+)
+x <- as.matrix(df[, -c(2)])
+y <- df$vaccinated
+reg_data <- list(n = nrow(x), k = ncol(x), pr_std = 0.01, x = x, y = y)
+nfit_probit <- sampling(
+  probit_model,
+  data = reg_data,
+  chains = 1,
+  iter = 5000,
+  warmup = 2000,
+  seed = 42,
+  show_messages = FALSE
+)
+```
+
+Finally, we implement the logistic regression model following the official instruction^[https://mc-stan.org/docs/2_21/stan-users-guide/logistic-probit-regression-section.html]. The code is as shown below:
+
+```{r stan_logistic, message = FALSE, results = "hide"}
+logistic_code <- "
+  data {
+    int<lower=0> n;                   // number of observations
+    int<lower=0> k;                   // number of predictors/features
+    real<lower=0> pr_std;             // prior standard deviation for beta
+    matrix[n, k] x;                   // predictor matrix
+    array[n] int<lower=0,upper=1> y;  // binary outcome variable
+  }
+
+  parameters {
+    vector[k] beta;             // regression coefficients
+  }
+
+  transformed parameters {
+    vector[n] mu;               // linear predictor
+    mu = x * beta;
+  }
+
+  model {
+    beta ~ normal(0, pr_std);
+    y ~ bernoulli_logit(mu);
+  }
+"
+logistic_model <- stan_model(
+  model_name = "logistic_regression",
+  model_code = logistic_code
+)
+nfit_logistic <- sampling(
+  logistic_model,
+  data = reg_data,
+  chains = 1,
+  iter = 5000,
+  warmup = 2000,
+  seed = 42,
+  show_messages = FALSE
+)
+```
+For comparison, we visualize the posterior distribution of $\beta$ estimated by the variational inference algorithm and the MCMC approximation from the probit and logistic regression models. The results are shown below:
+```{r plot_results}
+# plot the posterior distribution of beta
+probit_samples <- as.data.frame(nfit_probit)[, seq_len(ncol(x))]
+probit_samples$label <- "Probit"
+logistic_samples <- as.data.frame(nfit_logistic)[, seq_len(ncol(x))]
+logistic_samples$label <- "Logistic"
+combined_samples <- rbind(probit_samples, logistic_samples)
+colnames(combined_samples)[seq_len(ncol(x))] <- colnames(x)
+
+plot_list <- list()
+for (i in seq_len(ncol(x))) {
+  dim_name <- colnames(combined_samples)[i]
+  x_range = c(
+    result$mu_beta[i] - sqrt(result$cov_beta[i, i]),
+    result$mu_beta[i] + sqrt(result$cov_beta[i, i])
+  )
+  p <- ggplot(combined_samples, aes_string(x = dim_name, fill = "label")) +
+    stat_function(
+      fun = dnorm,
+      aes(group = NULL),
+      args = list(mean = result$mu_beta[i], sd = sqrt(result$cov_beta[i, i])),
+      color = "red",
+      inherit.aes = FALSE
+    ) +
+    geom_density(alpha = 0.5, bins=30, position="identity") +
+    labs(
+      title = dim_name,
+      x = dim_name,
+      y = "Density"
+    ) +
+    scale_fill_manual(values = c("blue", "green")) +
+    # scale_x_continuous(limits = x_range)
+    theme_minimal() +
+    theme(legend.position = "top")
+  plot_list[[i]] <- p
+}
+grid.arrange(grobs = plot_list, ncol = 3)
+```
+
+Based on the results:
+
+1. The treatment overall has a **positive effect** on patient vaccination, as suggested by the positive mean of the variational approximation of $\beta_{1}$ and the fact that $0.0$ is not included in the $95\%$ credible interval of the variational distribution $q(\beta_{1})$.
+2. The variational approximation deviates from the true posterior distribution given by MCMC, as means and covariance matrices are significantly different from each other indicated by the visualization and the table below.
+3. The logistic regression model provides similar results to the probit model, except for the posterior distribution of age, where the logistic model has a lower coefficient than the probit model.
+
+```{r param_table}
+probit_mean <- colMeans(probit_samples[, seq_len(ncol(x))])
+probit_var <- sapply(probit_samples[, seq_len(ncol(x))], var)
+logistic_mean <- colMeans(logistic_samples[, seq_len(ncol(x))])
+logistic_var <- sapply(logistic_samples[, seq_len(ncol(x))], var)
+data.frame(
+  Variable = colnames(x),
+  VB_Mean = result$mu_beta,
+  VB_Var = diag(result$cov_beta),
+  Probit_Mean = probit_mean,
+  Probit_Var = probit_var,
+  Logistic_Mean = logistic_mean,
+  Logistic_Var = logistic_var
+)
+```
